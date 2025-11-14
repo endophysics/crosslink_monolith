@@ -17,6 +17,8 @@ members = [
     "librustzcash/zcash_primitives",
     "librustzcash/zcash_proofs",
     "librustzcash/zcash_transparent",
+
+    "tenderlink",
 ]
 
 [workspace.package]
@@ -28,7 +30,7 @@ categories = ["cryptography::cryptocurrencies"]
 
 
 [workspace.dependencies]
-# librustzcash-redirects
+# librustzcash redirects
 # ----------------------
 # components
 equihash = { version = "0.2", path = "./librustzcash/components/equihash", default-features = false }
@@ -43,6 +45,10 @@ zcash_client_backend = { version = "0.19", path = "./librustzcash/zcash_client_b
 zcash_keys = { version = "0.10", path = "./librustzcash/zcash_keys" }
 zcash_primitives = { version = "0.24", path = "./librustzcash/zcash_primitives", default-features = false }
 zcash_proofs = { version = "0.24", path = "./librustzcash/zcash_proofs", default-features = false }
+
+# tenderlink redirects
+# --------------------
+tenderlink = { path = "./tenderlink" }
 
 
 # librustzcash-specific

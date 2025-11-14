@@ -3,7 +3,7 @@ We have to make it a mono repo
 
 # TODO
 * librustzcash (crosslink_tx branch) - DONE
-* tenderlink (master)
+* tenderlink (master) - DONE
 * visualizer_zcash (master)
 * zebra-crosslink (ms4-newviz)
 * zingo common
