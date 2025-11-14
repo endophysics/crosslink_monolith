@@ -496,7 +496,7 @@ impl DrawCtx {
         unsafe {
             let put = self.draw_command_buffer.add(*self.draw_command_count);
             *self.draw_command_count += 1;
-            *put = DrawCommand::ColoredRectangleRounded { x: x1.max(0) as u32, x2: x2.min(self.window_width) as u32, y: y1.max(0) as u32, y2: y2.min(self.window_height) as u32, radius: radius as u32, color: color };
+            *put = DrawCommand::ColoredRectangle { x: x1.max(0) as f32, x2: x2.min(self.window_width) as f32, y: y1.max(0) as f32, y2: y2.min(self.window_height) as f32, round_pixels: radius as f32, color, };
         }
     }
 
@@ -667,14 +667,6 @@ enum DrawCommand {
         y: f32,
         y2: f32,
         round_pixels: f32,
-        color: u32,
-    },
-    ColoredRectangleRounded {
-        x: u32,
-        x2: u32,
-        y: u32,
-        y2: u32,
-        radius: u32,
         color: u32,
     },
     PixelLineXDef { // will draw one pixel per x
@@ -1305,66 +1297,6 @@ pub fn main_thread_run_program() {
                                                                                 *(cursor_pixels as *mut u32) = blend_u32(*(cursor_pixels as *mut u32), color,  (pixel_alpha * 255.0).round() as u32);
                                                                                 cursor_pixels = cursor_pixels.byte_add(4);
                                                                             }
-                                                                            row_pixels = row_pixels.byte_add(4 << pixel_row_shift);
-                                                                        }
-                                                                    },
-                                                                    // @todo speedup
-                                                                    DrawCommand::ColoredRectangleRounded { mut x, mut x2, mut y, mut y2, radius, color } => {
-                                                                        x = x.max(tile_pixel_x);
-                                                                        x2 = x2.min(tile_pixel_x2);
-                                                                        y = y.max(tile_pixel_y);
-                                                                        y2 = y2.min(tile_pixel_y2);
-                                                                        if x >= x2 || y >= y2
-                                                                         { continue; }
-
-                                                                        hasher.write_u64(0x854893982098); // I have no clue what this value needs to be so it's ColoredRectangle + 1
-                                                                        hasher.write_u32(x);
-                                                                        hasher.write_u32(x2);
-                                                                        hasher.write_u32(y);
-                                                                        hasher.write_u32(y2);
-                                                                        hasher.write_u32(radius);
-                                                                        hasher.write_u32(color);
-
-                                                                        if !should_draw
-                                                                         { continue; }
-
-                                                                        let width  = x2 - x;
-                                                                        let height = y2 - y;
-                                                                        let r      = radius.min(width / 2).min(height / 2);
-                                                                        let rad_sq = (r * r) as i32;
-
-                                                                        let mut row_pixels = ctx.render_target_0.byte_add(((x + (y << pixel_row_shift)) as usize) << 2);
-                                                                        for py in y..y2 {
-                                                                            let mut cursor_pixels = row_pixels;
-                                                                            let dy = {
-                                                                                if py < y + r {
-                                                                                    (y + r - py) as i32
-                                                                                } else if py >= y2 - r {
-                                                                                    (py - (y2 - r - 1)) as i32
-                                                                                } else {
-                                                                                    0
-                                                                                }
-                                                                            };
-
-                                                                            for px in x..x2 {
-                                                                                let dx = {
-                                                                                    if px < x + r {
-                                                                                        (x + r - px) as i32
-                                                                                    } else if px >= x2 - r {
-                                                                                        (px - (x2 - r - 1)) as i32
-                                                                                    } else {
-                                                                                        0
-                                                                                    }
-                                                                                };
-
-                                                                                let in_corner = dx != 0 && dy != 0;
-                                                                                if !in_corner || (in_corner && (dx * dx + dy * dy) <= rad_sq) {
-                                                                                    *(cursor_pixels as *mut u32) = color;
-                                                                                }
-
-                                                                                cursor_pixels = cursor_pixels.byte_add(4);
-                                                                            }
-
                                                                             row_pixels = row_pixels.byte_add(4 << pixel_row_shift);
                                                                         }
                                                                     },
