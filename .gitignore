@@ -5,3 +5,4 @@
 *.idea/
 *.scratch
 *.DS_Store
+*/target

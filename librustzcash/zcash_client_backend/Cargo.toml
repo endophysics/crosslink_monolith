@@ -61,7 +61,7 @@ tracing.workspace = true
 # - Protobuf interfaces and gRPC bindings
 hex.workspace = true
 prost.workspace = true
-tonic = { workspace = true, optional = true, features = ["prost", "codegen"] }
+tonic = { version = "0.13.1", optional = true, features = ["prost", "codegen"] }
 
 # - Secret management
 secrecy.workspace = true
