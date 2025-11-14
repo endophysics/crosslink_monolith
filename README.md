@@ -8,3 +8,5 @@ We have to make it a mono repo
 * zebra-crosslink (ms4-newviz)
 * zingo common
 * zaino
+
+* phillip: look into git subtrees to allow simpler upstream pulling?
