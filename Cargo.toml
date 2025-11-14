@@ -19,6 +19,8 @@ members = [
     "librustzcash/zcash_transparent",
 
     "tenderlink",
+
+    "visualizer_zcash"
 ]
 
 [workspace.package]
@@ -49,6 +51,10 @@ zcash_proofs = { version = "0.24", path = "./librustzcash/zcash_proofs", default
 # tenderlink redirects
 # --------------------
 tenderlink = { path = "./tenderlink" }
+
+# visualizer_zcash redirects
+# --------------------------
+visualizer_zcash = { path = "./visualizer_zcash" }
 
 
 # librustzcash-specific
