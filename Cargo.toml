@@ -18,3 +18,121 @@ members = [
     "librustzcash/zcash_proofs",
     "librustzcash/zcash_transparent",
 ]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.81"
+license = "MIT, Apache-2.0"
+repository = "https://github.com/ShieldedLabs/crosslink_monolith"
+categories = ["cryptography::cryptocurrencies"]
+
+
+[workspace.dependencies]
+# librustzcash-redirects
+# ----------------------
+# components
+equihash = { version = "0.2", path = "./librustzcash/components/equihash", default-features = false }
+zcash_address = { version = "0.9", path = "./librustzcash/components/zcash_address", default-features = false }
+zcash_encoding = { version = "0.3", path = "./librustzcash/components/zcash_encoding", default-features = false }
+zcash_protocol = { version = "0.6.1", path = "./librustzcash/components/zcash_protocol", default-features = false }
+zip321 = { version = "0.5", path = "./librustzcash/components/zip321" }
+# top-level
+pczt = { version = "0.3", path = "./librustzcash/pczt" }
+transparent = { package = "zcash_transparent", version = "0.4", path = "./librustzcash/zcash_transparent", default-features = false }
+zcash_client_backend = { version = "0.19", path = "./librustzcash/zcash_client_backend" }
+zcash_keys = { version = "0.10", path = "./librustzcash/zcash_keys" }
+zcash_primitives = { version = "0.24", path = "./librustzcash/zcash_primitives", default-features = false }
+zcash_proofs = { version = "0.24", path = "./librustzcash/zcash_proofs", default-features = false }
+
+
+# librustzcash-specific
+# ---------------------
+aes = "0.8"
+ambassador = "0.4"
+arti-client = { version = "0.28", default-features = false, features = ["compression", "rustls", "tokio"] }
+assert_matches = "1.5"
+base64 = "0.22"
+bech32 = { version = "0.11", default-features = false, features = ["alloc"] }
+bellman = { version = "0.14", default-features = false, features = ["groth16"] }
+bip0039 = { version = "0.12" }
+bip32 = { version = "=0.6.0-pre.1", default-features = false }
+bitflags = "2"
+bitvec = { version = "1", default-features = false, features = ["alloc"] }
+blake2b_simd = { version = "1", default-features = false }
+blake2s_simd = { version = "1", default-features = false }
+block-buffer = { version = "=0.11.0-rc.3" } # later RCs require edition2024
+bls12_381 = "0.8"
+bs58 = { version = "0.5", default-features = false, features = ["alloc", "check"] }
+byteorder = "1"
+core2 = { version = "0.3", default-features = false, features = ["alloc"] }
+criterion = "0.5"
+crossbeam-channel = "0.5"
+crypto-common = { version = "=0.2.0-rc.1" } # later RCs require edition2024
+document-features = "0.2"
+dynosaur = "0.2"
+ff = { version = "0.13", default-features = false }
+fpe = { version = "0.6", default-features = false, features = ["alloc"] }
+fs-mistrust = "0.9"
+getset = "0.1"
+group = "0.13"
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+http-body-util = "0.1"
+hyper = "1"
+hyper-util = { version = "0.1.1", features = ["tokio"] }
+incrementalmerkletree = { version = "0.8.2", default-features = false }
+incrementalmerkletree-testing = "0.3"
+jubjub = "0.10"
+lazy_static = "1"
+maybe-rayon = { version = "0.1.0", default-features = false }
+memuse = { version = "0.2.2", default-features = false }
+nonempty = { version = "0.11", default-features = false }
+orchard = { version = "0.11", default-features = false }
+pasta_curves = "0.5"
+percent-encoding = "2.1.0"
+postcard = { version = "1", features = ["alloc"] }
+proptest = ">=1,<1.7" # proptest 1.7 updates to rand 0.9
+prost = "0.13"
+rand = { version = "0.8", default-features = false }
+rand_chacha = "0.3"
+rand_core = { version = "0.6", default-features = false }
+rand_distr = { version = "0.4", default-features = false }
+rand_xorshift = "0.3"
+rayon = "1.5"
+redjubjub = { version = "0.8", default-features = false }
+regex = { version = "1.11", default-features = false }
+ripemd = { version = "0.1", default-features = false }
+rusqlite = { version = "0.32", features = ["bundled"] }
+rust_decimal = { version = "1.35", default-features = false, features = ["serde"] }
+sapling = { package = "sapling-crypto", version = "0.5", default-features = false }
+schemerz = "0.2"
+schemerz-rusqlite = "0.320"
+secp256k1 = { version = "0.29", default-features = false, features = ["alloc"] }
+secrecy = "0.8"
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = "1"
+sha2 = { version = "0.10", default-features = false }
+shardtree = "0.6.1"
+static_assertions = "1"
+subtle = { version = "2.2.3", default-features = false }
+time = "0.3.22"
+time-core = "=0.1.2"
+tokio = "1"
+tokio-rustls = { version = "0.26", default-features = false }
+tonic = { version = "0.13", default-features = false }
+tonic-build = { version = "0.13", default-features = false }
+tor-rtcompat = "0.28"
+tower = "0.5"
+tracing = { version = "0.1", default-features = false }
+trait-variant = "0.1"
+uuid = "1.1"
+webpki-roots = "0.26"
+zcash_note_encryption = "0.4.1"
+zcash_spec = "0.2"
+zeroize = { version = "1.7", default-features = false }
+zip32 = { version = "0.2", default-features = false }
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(zcash_unstable, values("zfuture", "nu7"))',
+  'cfg(live_network_tests)',
+] }
