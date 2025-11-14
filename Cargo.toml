@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+    "librustzcash/components/equihash",
+    "librustzcash/components/f4jumble",
+    "librustzcash/components/zcash_address",
+    "librustzcash/components/zcash_encoding",
+    "librustzcash/components/zcash_protocol",
+    "librustzcash/components/zip321",
+    "librustzcash/pczt",
+    "librustzcash/zcash",
+    "librustzcash/zcash_client_backend",
+    "librustzcash/zcash_client_sqlite",
+    "librustzcash/zcash_extensions",
+    "librustzcash/zcash_history",
+    "librustzcash/zcash_keys",
+    "librustzcash/zcash_primitives",
+    "librustzcash/zcash_proofs",
+    "librustzcash/zcash_transparent",
+]
