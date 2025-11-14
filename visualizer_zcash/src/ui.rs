@@ -171,7 +171,7 @@ pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui:
         if ui.button("Stake") {
         }
 
-        let event = ui.textbox("0.00000 cTAZ"); // , Flags::DEFAULT_TEXTBOX_FLAGS | Flags::KEEP_FOCUS);
+        let event = ui.textbox("0.00000 cTAZ");
 
     }
     ui.pop_parent(left_panel);
@@ -452,6 +452,7 @@ impl Context {
                     e.pressed = true;
                     self.hot_widget = widget.id;
                 }
+                e.hovering = true;
             }
 
             if self.hot_widget == widget.id {
@@ -547,6 +548,8 @@ impl Context {
         let mut computed_width  = 0f32;
         let mut computed_height = 0f32;
 
+        let border_width = if widget.flags.has(Flags::DRAW_BORDER) { style.border_width } else { 0f32 };
+
         // SumOfChildren is the only thing that requires computing children first
         let must_compute_children_first = matches!(widget.size, (Size::SumOfChildren { .. }, _) | (_, Size::SumOfChildren { .. }));
         if must_compute_children_first {
@@ -566,13 +569,13 @@ impl Context {
 
             Size::TextContent(_font) => {
                 let text_width = self.draw().measure_text_line(24.0 /* @todo font */, &widget.display_text);
-                computed_width = (text_width as f32 + style.padding) as f32;
+                computed_width = text_width as f32 + (style.padding + border_width) * 2f32;
             }
 
             Size::PercentOfParent { amount: x_pct, tolerance: x_tol } => {
                 if let Some(parent_id) = widget.parent {
                     let parent = magic(self.widgets.get_mut(&parent_id).unwrap());
-                    computed_width = (parent.rel_rect.width() * x_pct - style.spacing * 2f32); // @todo tolerance
+                    computed_width = parent.rel_rect.width() * x_pct - (style.spacing + border_width) * 2f32; // @todo tolerance
                 }
             }
 
@@ -588,13 +591,13 @@ impl Context {
                 computed_height = height_px;
             }
             Size::TextContent(_font) => {
-                computed_height = (24f32 /* @todo font */ + style.padding) as f32;
+                computed_height = 24f32 /* @todo font */ + (style.padding + border_width) * 2f32;
             }
 
             Size::PercentOfParent { amount: y_pct, tolerance: y_tol } => {
                 if let Some(parent_id) = widget.parent {
                     let parent = magic(self.widgets.get_mut(&parent_id).unwrap());
-                    computed_height = (parent.rel_rect.height() * y_pct - style.spacing * 2f32); // @todo tolerance
+                    computed_height = parent.rel_rect.height() * y_pct - (style.spacing + border_width) * 2f32; // @todo tolerance
                 }
             }
 
@@ -622,13 +625,16 @@ impl Context {
     fn compute_relative_widget_rect(&mut self, widget: &mut Widget) {
         let style = self.get_style();
 
+        let border_width = if widget.flags.has(Flags::DRAW_BORDER) { style.border_width } else { 0f32 };
+
         if let Some(parent_id) = widget.parent {
             let parent = magic(self.widgets.get_mut(&parent_id).unwrap());
 
             if parent.cursor.0 > parent.interior.x1 &&
                parent.cursor.0 + widget.rel_rect.width() >= parent.interior.x2 {
-                parent.cursor.1 += widget.rel_rect.height() + style.spacing;
+                parent.cursor.1 += parent.line_height + style.spacing;
                 parent.cursor.0 = parent.interior.x1;
+                parent.line_height = 0f32;
             }
 
             widget.interior = widget.rel_rect;
@@ -640,14 +646,15 @@ impl Context {
             widget.viz_rect = widget.interior;
 
             parent.cursor.0 += widget.rel_rect.width() + style.spacing;
+            parent.line_height = parent.line_height.max(widget.rel_rect.height());
         }
         else {
             widget.interior = widget.rel_rect;
             widget.viz_rect = widget.rel_rect;
-            widget.interior.x1 += style.spacing;
-            widget.interior.x2 -= style.spacing;
-            widget.interior.y1 += style.spacing;
-            widget.interior.y2 -= style.spacing;
+            widget.interior.x1 += style.spacing + border_width;
+            widget.interior.x2 -= style.spacing + border_width;
+            widget.interior.y1 += style.spacing + border_width;
+            widget.interior.y2 -= style.spacing + border_width;
             widget.cursor   = (widget.interior.x1, widget.interior.y1);
         }
 
@@ -664,22 +671,34 @@ impl Context {
 
         let style = self.get_style();
 
+        let border_width = if widget.flags.has(Flags::DRAW_BORDER) { style.border_width } else { 0f32 };
+
+        let mut widget_color = style.background;
+        if widget.flags.has(Flags::CLICKABLE | Flags::TYPEABLE) {
+            if self.active_widget == widget.id {
+                widget_color = widget_color.dim(2.0); // @todo style
+            }
+            if self.hot_widget == widget.id {
+                widget_color = widget_color.dim(0.1); // @todo style
+            }
+        }
+
+        if widget.flags.has(Flags::DISABLED) {
+            widget_color = widget_color.dim(0.5);
+        }
+
         if widget.flags.has(Flags::DRAW_BACKGROUND) {
-            let mut color = style.background;
-            if widget.flags.has(Flags::CLICKABLE | Flags::TYPEABLE) {
-                if self.active_widget == widget.id {
-                    color = color.dim(2.0); // @todo style
-                }
-                if self.hot_widget == widget.id {
-                    color = color.dim(0.1); // @todo style
-                }
-            }
+            let color = if widget.flags.has(Flags::DRAW_BORDER) { style.border } else { widget_color };
+            self.draw_commands.push(DrawCommand::Rect(widget.viz_rect, Some(style.rounded_corner_radius as isize), color));
 
-            if widget.flags.has(Flags::DISABLED) {
-                color = color.dim(0.5);
+            if widget.flags.has(Flags::DRAW_BORDER) {
+                let mut r = widget.viz_rect;
+                r.x1 += style.border_width;
+                r.x2 -= style.border_width;
+                r.y1 += style.border_width;
+                r.y2 -= style.border_width;
+                self.draw_commands.push(DrawCommand::Rect(r, Some((style.rounded_corner_radius * 7f32 / 8f32) as isize), widget_color));
             }
-
-            self.draw_commands.push(DrawCommand::Rect(widget.viz_rect, None, color));
         }
 
         if widget.flags.has(Flags::DRAW_PIP) {
@@ -705,7 +724,10 @@ impl Context {
 
             let color = if widget.flags.has(Flags::DISABLED) { color.dim(0.5) } else { color }; // @todo style
             let font  = Font((widget.flags & Flags::DRAW_SERIF_TEXT).into()); // @todo font
-            self.draw_commands.push(DrawCommand::Text(font, widget.viz_rect.x1 as isize, widget.viz_rect.y1 as isize, color, text));
+            let (mut x, mut y) = (widget.viz_rect.x1, widget.viz_rect.y1);
+            x += border_width + style.padding;
+            y += border_width + style.padding;
+            self.draw_commands.push(DrawCommand::Text(font, x as isize, y as isize, color, text));
         }
 
         if widget.flags.has(Flags::TYPEABLE) && self.hot_input == widget.id {
@@ -713,23 +735,19 @@ impl Context {
 
             let x1: f32;
             if widget.text_idx == 0 {
-                x1 = widget.viz_rect.x1 + 1.0; // @todo style
+                x1 = widget.viz_rect.x1 + 1.0 + border_width + style.padding; // @todo style
             }
             else {
                 let width_of_current_text = self.draw().measure_text_line(24.0 /* @todo font */, &text_before_idx) as f32;
-                x1 = widget.viz_rect.x1 + width_of_current_text as f32;
+                x1 = widget.viz_rect.x1 + border_width + style.padding + width_of_current_text as f32;
             }
 
             let cursor_rect = Rect::new(x1, widget.viz_rect.y1 + 4.0, x1 + 1.0, widget.viz_rect.y2 - 4.0); // @todo style
             self.draw_commands.push(DrawCommand::Rect(cursor_rect, None, Color::DEBUG_RED)); // @todo style
         }
 
-        if widget.flags.has(Flags::DRAW_BORDER) {
-            self.draw_commands.push(DrawCommand::Box(widget.viz_rect, 2f32 /* @todo style */, style.border));
-        }
-
         if self.debug {
-            self.draw_commands.push(DrawCommand::Box(widget.viz_rect, 2f32 /* @todo style */, Color::DEBUG_MAGENTA.fade(0.25)));
+            self.draw_commands.push(DrawCommand::Box(widget.viz_rect, style.border_width, Color::DEBUG_MAGENTA.fade(0.25)));
         }
 
         for i in 0..widget.children.len() {
@@ -901,6 +919,7 @@ struct Widget {
     viz_rect: Rect,    // positioned rectangle - used to render
     interior: Rect,    // interior available content rectangle
     cursor:   (f32, f32), // layout cursor
+    line_height: f32, // max height of all items on this line
 
     // CONTROL FIELDS
     display_text: String,
@@ -1106,6 +1125,8 @@ pub struct Style {
 
     pub padding: f32,
     pub spacing: f32,
+    pub border_width: f32,
+    pub rounded_corner_radius: f32,
 }
 
 impl Style {
@@ -1119,6 +1140,8 @@ impl Style {
 
             padding: 4f32,
             spacing: 8f32,
+            border_width: 2f32,
+            rounded_corner_radius: 8f32,
         }
     }
 }
