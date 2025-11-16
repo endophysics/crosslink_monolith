@@ -21,7 +21,7 @@ members = [
     "tenderlink",
 
     "visualizer_zcash",
-    
+
     "zebra-crosslink/zebrad",
     "zebra-crosslink/zebra-chain",
     "zebra-crosslink/zebra-network",
@@ -35,6 +35,9 @@ members = [
     "zebra-crosslink/zebra-crosslink",
     "zebra-crosslink/tower-batch-control",
     "zebra-crosslink/tower-fallback",
+
+    "zingo-common/zingo_common_components",
+    "zingo-common/zingo_netutils",
 ]
 
 [workspace.package]
@@ -72,9 +75,8 @@ tenderlink = { path = "./tenderlink" }
 # --------------------------
 visualizer_zcash = { path = "./visualizer_zcash" }
 
-
 # zebra redirects
-# --------------------------
+# ---------------
 zebrad = { path = "./zebra-crosslink/zebrad" }
 zebra-chain = { path = "zebra-crosslink/zebra-chain" }
 zebra-network = { path = "zebra-crosslink/zebra-network" }
@@ -88,6 +90,11 @@ zebra-utils = { path = "zebra-crosslink/zebra-utils" }
 zebra-crosslink = { path = "zebra-crosslink/zebra-crosslink" }
 tower-batch-control = { path = "zebra-crosslink/tower-batch-control" }
 tower-fallback = { path = "zebra-crosslink/tower-fallback" }
+
+# zingo-common redirects
+# ----------------------
+zingo_common_components = { path = "zingo-common/zingo_common_components" }
+zingo_netutils = { path = "zingo-common/zingo_netutils" }
 
 # common
 # ---------------------
@@ -261,6 +268,15 @@ vergen-git2 = { version = "1.0", default-features = false }
 x25519-dalek = "2.0.1"
 zcash_script = "0.3.2"
 config = { version = "0.15.14", features = ["toml"] }
+
+# zingo-common specific
+# ---------------------
+http = "1.1.0"
+http-body = "1"
+hyper-rustls = { version = "0.27", features = ["http2"] }
+tonic = { version = "0.13", features = ["tls-webpki-roots"] }
+rustls-pemfile = "2"
+
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [

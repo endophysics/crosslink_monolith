@@ -6,5 +6,5 @@ We have to make it a mono repo
 * tenderlink (master) - DONE
 * visualizer_zcash (master) - DONE
 * zebra-crosslink (ms4-newviz) - DONE
-* zingo common
+* zingo common - DONE
 * zaino
