@@ -38,6 +38,16 @@ members = [
 
     "zingo-common/zingo_common_components",
     "zingo-common/zingo_netutils",
+
+    "zaino/zaino-common",
+    # "zaino/integration-tests",
+    # "zaino/zaino-testutils",
+    "zaino/zainod",
+    "zaino/zaino-serve",
+    "zaino/zaino-state",
+    "zaino/zaino-fetch",
+    "zaino/zaino-proto",
+    "zaino/zaino-testvectors",
 ]
 
 [workspace.package]
@@ -46,18 +56,19 @@ rust-version = "1.81"
 license = "MIT, Apache-2.0"
 repository = "https://github.com/ShieldedLabs/crosslink_monolith"
 categories = ["cryptography::cryptocurrencies"]
+version = "0.0.1"
+authors = ["ShieldedLabs"]
+homepage = "https://shieldedlabs.net"
 
 
 [workspace.dependencies]
 # librustzcash redirects
-# ----------------------
-# components
+# -----------------------------------------------------------------------------
 equihash = { version = "0.2", path = "./librustzcash/components/equihash" }
 zcash_address = { version = "0.9", path = "./librustzcash/components/zcash_address", default-features = false }
 zcash_encoding = { version = "0.3", path = "./librustzcash/components/zcash_encoding", default-features = false }
 zcash_protocol = { version = "0.6.1", path = "./librustzcash/components/zcash_protocol", default-features = false }
 zip321 = { version = "0.5", path = "./librustzcash/components/zip321" }
-# top-level
 pczt = { version = "0.3", path = "./librustzcash/pczt" }
 transparent = { package = "zcash_transparent", version = "0.4", path = "./librustzcash/zcash_transparent", default-features = false }
 zcash_client_backend = { version = "0.19", path = "./librustzcash/zcash_client_backend" }
@@ -68,15 +79,15 @@ zcash_proofs = { version = "0.24", path = "./librustzcash/zcash_proofs", default
 zcash_transparent = { path = "./librustzcash/zcash_transparent" }
 
 # tenderlink redirects
-# --------------------
+# -----------------------------------------------------------------------------
 tenderlink = { path = "./tenderlink" }
 
 # visualizer_zcash redirects
-# --------------------------
+# -----------------------------------------------------------------------------
 visualizer_zcash = { path = "./visualizer_zcash" }
 
 # zebra redirects
-# ---------------
+# -----------------------------------------------------------------------------
 zebrad = { path = "./zebra-crosslink/zebrad" }
 zebra-chain = { path = "zebra-crosslink/zebra-chain" }
 zebra-network = { path = "zebra-crosslink/zebra-network" }
@@ -92,12 +103,25 @@ tower-batch-control = { path = "zebra-crosslink/tower-batch-control" }
 tower-fallback = { path = "zebra-crosslink/tower-fallback" }
 
 # zingo-common redirects
-# ----------------------
+# -----------------------------------------------------------------------------
 zingo_common_components = { path = "zingo-common/zingo_common_components" }
 zingo_netutils = { path = "zingo-common/zingo_netutils" }
 
+# zaino redirects
+# -----------------------------------------------------------------------------
+zaino-common = { path = "zaino/zaino-common" }
+integration-tests = { path = "zaino/integration-tests" }
+zaino-testutils = { path = "zaino/zaino-testutils" }
+zainod = { path = "zaino/zainod" }
+zaino-serve = { path = "zaino/zaino-serve" }
+zaino-state = { path = "zaino/zaino-state" }
+zaino-fetch = { path = "zaino/zaino-fetch" }
+zaino-proto = { path = "zaino/zaino-proto" }
+zaino-testvectors = { path = "zaino/zaino-testvectors" }
+
+
 # common
-# ---------------------
+# -----------------------------------------------------------------------------
 incrementalmerkletree = { version = "0.8.2", features = ["legacy-api"] }
 orchard = "0.11"
 base64 = "0.22.1"
@@ -137,9 +161,12 @@ tokio = "1.44.2"
 tower = "0.4.13"
 tracing = "0.1.41"
 zcash_note_encryption = "0.4.1"
+tonic = { version = "0.12", features = ["tls-webpki-roots", "tls"] }
+rocksdb = { version = "0.23.0", default-features = false, features = ["lz4", "bindgen-runtime"] }
+
 
 # librustzcash-specific
-# ---------------------
+# -----------------------------------------------------------------------------
 aes = "0.8"
 ambassador = "0.4"
 arti-client = { version = "0.28", default-features = false, features = ["compression", "rustls", "tokio"] }
@@ -184,9 +211,8 @@ zcash_spec = "0.2"
 zeroize = { version = "1.7", default-features = false }
 zip32 = { version = "0.2", default-features = false }
 
-
 # zebra-specific
-# ---------------------
+# -----------------------------------------------------------------------------
 sapling-crypto = "0.5"
 abscissa_core = "0.7"
 atty = "0.2.14"
@@ -235,7 +261,6 @@ quote = "1.0.40"
 reddsa = "0.5"
 reqwest = { version = "0.12.15", default-features = false }
 rlimit = "0.10.2"
-rocksdb = { version = "0.23.0", default-features = false, features = ["bindgen-runtime"] }
 semver = "1.0.26"
 sentry = { version = "0.40", default-features = false }
 serde-big-array = "0.5"
@@ -270,13 +295,29 @@ zcash_script = "0.3.2"
 config = { version = "0.15.14", features = ["toml"] }
 
 # zingo-common specific
-# ---------------------
+# -----------------------------------------------------------------------------
 http = "1.1.0"
 http-body = "1"
 hyper-rustls = { version = "0.27", features = ["http2"] }
-tonic = { version = "0.13", features = ["tls-webpki-roots"] }
 rustls-pemfile = "2"
 
+# zaino specific
+# -----------------------------------------------------------------------------
+anyhow = "1.0"
+portpicker = "0.1"
+zingolib = "2.0.9"
+which = "4"
+whoami = "1.5"
+derive_more = "2.0.1"
+url = "2.5"
+arc-swap = "1.7.1"
+async-trait = "0.1"
+blake2 = "0.10"
+dashmap = "6.1"
+lmdb = "0.8"
+lmdb-sys = "0.8"
+cargo-lock = "10.1.0"
+figment = "0.10"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [

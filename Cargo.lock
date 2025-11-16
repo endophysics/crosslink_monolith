@@ -1150,6 +1150,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "061dc3258f029feaf9ff02b43c6af5ea67a7dfaed5d2aef36204c812e614ef9c"
 
 [[package]]
+name = "cargo-lock"
+version = "10.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c06acb4f71407ba205a07cb453211e0e6a67b21904e47f6ba1f9589e38f2e454"
+dependencies = [
+ "semver",
+ "serde",
+ "toml 0.8.23",
+ "url",
+]
+
+[[package]]
 name = "cargo-platform"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2095,6 +2107,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "6.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5041cc499144891f3790297212f32a74fb938e5136a14943f338ef9e0ae276cf"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "dasp_sample"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2885,7 +2911,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8cb01cd46b0cf372153850f4c6c272d9cbea2da513e07538405148f95bd789f3"
 dependencies = [
  "atomic 0.6.1",
+ "parking_lot",
+ "pear",
  "serde",
+ "tempfile",
  "toml 0.8.23",
  "uncased",
  "version_check",
@@ -4050,6 +4079,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "inlinable_string"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8fae54786f62fb2918dcfae3d568594e50eb9b5c25bf04371af6fe7516452fb"
+
+[[package]]
 name = "inotify"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4230,9 +4265,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e281ae70cc3b98dac15fced3366a880949e65fc66e345ce857a5682d152f3e62"
 dependencies = [
  "jsonrpsee-core",
+ "jsonrpsee-proc-macros",
  "jsonrpsee-server",
  "jsonrpsee-types",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4527,6 +4564,28 @@ name = "litrs"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
+
+[[package]]
+name = "lmdb"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b0908efb5d6496aa977d96f91413da2635a902e5e31dbef0bfb88986c248539"
+dependencies = [
+ "bitflags 1.3.2",
+ "libc",
+ "lmdb-sys",
+]
+
+[[package]]
+name = "lmdb-sys"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5b392838cfe8858e86fac37cf97a0e8c55cc60ba0a18365cadc33092f128ce9"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+]
 
 [[package]]
 name = "lock_api"
@@ -5890,6 +5949,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "pear"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bdeeaa00ce488657faba8ebf44ab9361f9365a97bd39ffb8a60663f57ff4b467"
+dependencies = [
+ "inlinable_string",
+ "pear_codegen",
+ "yansi",
+]
+
+[[package]]
+name = "pear_codegen"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4bab5b985dc082b345f812b7df84e1bef27e7207b39e448439ba8bd69c93f147"
+dependencies = [
+ "proc-macro2",
+ "proc-macro2-diagnostics",
+ "quote",
+ "syn 2.0.110",
+]
+
+[[package]]
 name = "pem-rfc7468"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6321,6 +6403,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ee95bc4ef87b8d5ba32e8b7714ccc834865276eab0aed5c9958d00ec45f49e8"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "proc-macro2-diagnostics"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af066a9c399a26e020ada66a034357a868728e72cd426f3adcd35f80d88d88c8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.110",
+ "version_check",
+ "yansi",
 ]
 
 [[package]]
@@ -9068,13 +9163,16 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "prost 0.13.5",
+ "rustls-pemfile",
  "socket2 0.5.10",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tower 0.4.13",
  "tower-layer",
  "tower-service",
  "tracing",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -10297,6 +10395,7 @@ dependencies = [
  "sharded-slab",
  "smallvec",
  "thread_local",
+ "time",
  "tracing",
  "tracing-core",
  "tracing-log 0.2.0",
@@ -10816,6 +10915,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasite"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
+
+[[package]]
 name = "wasix"
 version = "0.12.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11049,6 +11154,18 @@ checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
 
 [[package]]
 name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix 0.38.44",
+]
+
+[[package]]
+name = "which"
 version = "7.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d643ce3fd3e5b54854602a080f34fb10ab75e0b813ee32d00ca2b44fa74762"
@@ -11057,6 +11174,17 @@ dependencies = [
  "env_home",
  "rustix 1.1.2",
  "winsafe",
+]
+
+[[package]]
+name = "whoami"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d4a4db5077702ca3015d3d02d74974948aba2ad9e12ab7df718ee64ccd7e97d"
+dependencies = [
+ "libredox",
+ "wasite",
+ "web-sys",
 ]
 
 [[package]]
@@ -11600,6 +11728,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "yansi"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
+
+[[package]]
 name = "yazi"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11626,6 +11760,149 @@ dependencies = [
  "quote",
  "syn 2.0.110",
  "synstructure 0.13.2",
+]
+
+[[package]]
+name = "zaino-common"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "thiserror 2.0.17",
+ "zebra-chain",
+]
+
+[[package]]
+name = "zaino-fetch"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "byteorder",
+ "derive_more",
+ "hex",
+ "http",
+ "indexmap 2.12.0",
+ "jsonrpsee-types",
+ "prost 0.14.1",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.17",
+ "tokio",
+ "tonic 0.12.3",
+ "tracing",
+ "url",
+ "zaino-proto",
+ "zaino-testvectors",
+ "zebra-chain",
+ "zebra-rpc",
+]
+
+[[package]]
+name = "zaino-proto"
+version = "0.0.1"
+dependencies = [
+ "prost 0.14.1",
+ "tonic 0.12.3",
+ "tonic-build 0.13.1",
+ "which 4.4.2",
+]
+
+[[package]]
+name = "zaino-serve"
+version = "0.0.1"
+dependencies = [
+ "futures",
+ "jsonrpsee",
+ "serde",
+ "thiserror 2.0.17",
+ "tokio",
+ "tonic 0.12.3",
+ "tower 0.4.13",
+ "tracing",
+ "whoami",
+ "zaino-fetch",
+ "zaino-proto",
+ "zaino-state",
+ "zebra-chain",
+ "zebra-rpc",
+]
+
+[[package]]
+name = "zaino-state"
+version = "0.0.1"
+dependencies = [
+ "arc-swap",
+ "async-trait",
+ "bitflags 2.10.0",
+ "blake2",
+ "bs58",
+ "cargo-lock",
+ "chrono",
+ "core2 0.3.3",
+ "dashmap",
+ "derive_more",
+ "futures",
+ "hex",
+ "indexmap 2.12.0",
+ "lmdb",
+ "lmdb-sys",
+ "nonempty",
+ "once_cell",
+ "primitive-types",
+ "prost 0.14.1",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.12.3",
+ "tower 0.4.13",
+ "tracing",
+ "tracing-subscriber",
+ "whoami",
+ "zaino-common",
+ "zaino-fetch",
+ "zaino-proto",
+ "zcash_address 0.9.0",
+ "zcash_keys 0.10.0",
+ "zcash_primitives 0.24.0",
+ "zcash_protocol 0.6.1",
+ "zcash_transparent 0.4.0",
+ "zebra-chain",
+ "zebra-rpc",
+ "zebra-state",
+]
+
+[[package]]
+name = "zaino-testvectors"
+version = "0.0.1"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
+name = "zainod"
+version = "0.0.1"
+dependencies = [
+ "clap 4.5.51",
+ "figment",
+ "http",
+ "serde",
+ "thiserror 2.0.17",
+ "tokio",
+ "toml 0.9.8",
+ "tracing",
+ "tracing-subscriber",
+ "zaino-common",
+ "zaino-fetch",
+ "zaino-serve",
+ "zaino-state",
+ "zebra-chain",
+ "zebra-state",
 ]
 
 [[package]]
@@ -11724,7 +12001,7 @@ dependencies = [
  "tracing",
  "trait-variant",
  "webpki-roots 0.26.11",
- "which",
+ "which 7.0.3",
  "zcash_address 0.9.0",
  "zcash_encoding 0.3.0",
  "zcash_keys 0.10.0",
@@ -11789,7 +12066,7 @@ dependencies = [
  "tracing",
  "trait-variant",
  "webpki-roots 0.26.11",
- "which",
+ "which 7.0.3",
  "zcash_address 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zcash_encoding 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zcash_keys 0.11.0",
@@ -12797,7 +13074,7 @@ dependencies = [
  "rustls-pemfile",
  "thiserror 2.0.17",
  "tokio-rustls",
- "tonic 0.13.1",
+ "tonic 0.12.3",
  "tower 0.4.13",
  "webpki-roots 0.25.4",
  "zcash_client_backend 0.20.0",
