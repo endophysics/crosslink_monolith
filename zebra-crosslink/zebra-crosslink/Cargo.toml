@@ -63,6 +63,9 @@ miniquad = { version = "0.4.8", optional = true }
 hex = { version = "0.4.3", features = ["serde"] }
 lazy_static = "1.5.0"
 
+tenderlink = { workspace = true }
+visualizer_zcash = { workspace = true }
+
 [dev-dependencies]
 zebra-test = { path = "../zebra-test", version = "1.0.0-beta.45" }
 
@@ -70,20 +73,6 @@ zebra-test = { path = "../zebra-test", version = "1.0.0-beta.45" }
 default = []
 viz_gui = ["macroquad", "macroquad-profiler", "image", "miniquad"]
 audio = []
-
-[dependencies.tenderlink]
-version = "0.1.0"
-git = "https://github.com/ShieldedLabs/tenderlink.git"
-rev = "0e885095939781e2ce6320ab45097aeb85873449"
-#path = "/home/sam/dev/stuff"
-package = "tenderlink"
-
-[dependencies.visualizer_zcash]
-version = "0.1.0"
-git = "https://github.com/ShieldedLabs/visualizer_zcash"
-rev = "c3d43e5664b265b10d9b246e21205400f101fe40"
-#path = "/home/sam/dev/visualizer_zcash"
-package = "visualizer_zcash"
 
 [build-dependencies]
 prost-build = "0.13"

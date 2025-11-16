@@ -1194,7 +1194,7 @@ async fn tfl_service_main_loop(internal_handle: TFLServiceHandle) -> Result<(), 
                     addr_string_to_stuff(&config.malachite_peers.get(i).unwrap_or_else(|| &string));
                 EndpointEvidence {
                     endpoint: b,
-                    root_public_key: m.public_key.into(),
+                    root_public_bft_key: m.public_key.into(),
                 }
             })
             .collect();

@@ -6660,7 +6660,6 @@ dependencies = [
 [[package]]
 name = "tenderlink"
 version = "0.1.0"
-source = "git+https://github.com/ShieldedLabs/tenderlink.git?rev=0e885095939781e2ce6320ab45097aeb85873449#0e885095939781e2ce6320ab45097aeb85873449"
 dependencies = [
  "blake3",
  "byteorder",
@@ -7726,7 +7725,6 @@ dependencies = [
 [[package]]
 name = "visualizer_zcash"
 version = "0.1.0"
-source = "git+https://github.com/ShieldedLabs/visualizer_zcash?rev=c3d43e5664b265b10d9b246e21205400f101fe40#c3d43e5664b265b10d9b246e21205400f101fe40"
 dependencies = [
  "arboard",
  "num_cpus",

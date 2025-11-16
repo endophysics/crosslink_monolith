@@ -38,7 +38,7 @@ pub async fn service_viz_requests(
             } else {
                 Vec::new()
             };
-    
+
             let tip_height_hash: (BlockHeight, BlockHash) = {
                 if let Ok(StateResponse::Tip(Some(tip_height_hash))) =
                     (call.state)(StateRequest::Tip).await
