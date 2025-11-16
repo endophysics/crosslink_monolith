@@ -10,7 +10,7 @@ use color_eyre::install;
 
 use async_trait::async_trait;
 use strum::{EnumCount, IntoEnumIterator};
-use strum_macros::{EnumCount, EnumIter};
+use strum_macros::{EnumIter};
 
 use tenderlink::SortedRosterMember;
 use zcash_primitives::transaction::{StakingAction, StakingActionKind};
