@@ -26,16 +26,17 @@ version = "0.1.2"
 
 [workspace.dependencies]
 # Librustzcash
-zcash_address = "0.9"
-zcash_keys = "0.10"
-zcash_protocol = "0.6"
-zcash_primitives = "0.24"
-zcash_transparent = "0.4"
+zcash_address = { version = "0.9", path = "../librustzcash/components/zcash_address" }
+zcash_keys = { version = "0.10", path = "../librustzcash/zcash_keys" }
+zcash_primitives = { version = "0.24", path = "../librustzcash/zcash_primitives" }
+zcash_proofs = { path = "../librustzcash/zcash_proofs" }
+zcash_protocol = { version = "0.6", path = "../librustzcash/components/zcash_protocol" }
+zcash_transparent = { version = "0.4", path = "../librustzcash/zcash_transparent" }
 
 # Zebra
-zebra-chain = "2.0"
-zebra-state = "2.0"
-zebra-rpc = "2.0"
+zebra-chain = { version = "2.0", path = "../zebra-crosslink/zebra-chain" }
+zebra-state = { version = "2.0", path = "../zebra-crosslink/zebra-state" }
+zebra-rpc = { version = "2.0", path = "../zebra-crosslink/zebra-rpc" }
 
 # Runtime
 tokio = { version = "1.38", features = ["full"] }
