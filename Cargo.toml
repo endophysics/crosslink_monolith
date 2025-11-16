@@ -39,15 +39,28 @@ members = [
     "zingo-common/zingo_common_components",
     "zingo-common/zingo_netutils",
 
+    "zingo-infrastructure/zcash_local_net",
+    "zingo-infrastructure/zingo_test_vectors",
+
+    "zingolib/zingo-cli",
+    "zingolib/zingolib",
+    "zingolib/zingo-memo",
+    "zingolib/pepper-sync",
+    "zingolib/zingo-price",
+    "zingolib/zingo-status",
+    # "zingolib/zingolib_testutils",
+    # "zingolib/libtonode-tests",
+    # "zingolib/darkside-tests",
+
     "zaino/zaino-common",
-    # "zaino/integration-tests",
-    # "zaino/zaino-testutils",
     "zaino/zainod",
     "zaino/zaino-serve",
     "zaino/zaino-state",
     "zaino/zaino-fetch",
     "zaino/zaino-proto",
     "zaino/zaino-testvectors",
+    # "zaino/integration-tests",
+    # "zaino/zaino-testutils",
 ]
 
 [workspace.package]
@@ -107,6 +120,23 @@ tower-fallback = { path = "zebra-crosslink/tower-fallback" }
 zingo_common_components = { path = "zingo-common/zingo_common_components" }
 zingo_netutils = { path = "zingo-common/zingo_netutils" }
 
+# zingo-infrastructure redirects
+# -----------------------------------------------------------------------------
+zcash_local_net = { path = "zingo-infrastructure/zcash_local_net" }
+zingo_test_vectors = { path = "zingo-infrastructure/zingo_test_vectors" }
+
+# zingolib redirects
+# -----------------------------------------------------------------------------
+zingo-cli = { path = "zingolib/zingo-cli" }
+zingolib = { path = "zingolib/zingolib" }
+zingo-memo = { path = "zingolib/zingo-memo" }
+pepper-sync = { path = "zingolib/pepper-sync" }
+zingo-price = { path = "zingolib/zingo-price" }
+zingo-status = { path = "zingolib/zingo-status" }
+# zingolib_testutils = { path = "zingolib/zingolib_testutils" }
+# libtonode-tests = { path = "zingolib/libtonode-tests" }
+# darkside-tests = { path = "zingolib/darkside-tests" }
+
 # zaino redirects
 # -----------------------------------------------------------------------------
 zaino-common = { path = "zaino/zaino-common" }
@@ -118,6 +148,7 @@ zaino-state = { path = "zaino/zaino-state" }
 zaino-fetch = { path = "zaino/zaino-fetch" }
 zaino-proto = { path = "zaino/zaino-proto" }
 zaino-testvectors = { path = "zaino/zaino-testvectors" }
+
 
 
 # common
@@ -301,11 +332,24 @@ http-body = "1"
 hyper-rustls = { version = "0.27", features = ["http2"] }
 rustls-pemfile = "2"
 
+# zingolib specific
+# -----------------------------------------------------------------------------
+json = "0.12"
+indoc = "2"
+rustls = { version = "0.23", features = ["ring"] }
+rustyline = "11"
+shellwords = "1"
+simple-mermaid = "0.2.0"
+append-only-vec = "0.1.7"
+log4rs = "1"
+ring = "0.17"
+rust-embed = "6"
+concat-idents = "1"
+
 # zaino specific
 # -----------------------------------------------------------------------------
 anyhow = "1.0"
 portpicker = "0.1"
-zingolib = "2.0.9"
 which = "4"
 whoami = "1.5"
 derive_more = "2.0.1"
