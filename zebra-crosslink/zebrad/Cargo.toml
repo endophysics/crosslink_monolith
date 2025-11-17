@@ -247,6 +247,9 @@ proptest-derive = { workspace = true, optional = true }
 # test feature tokio-console
 console-subscriber = { workspace = true, optional = true }
 
+tempfile = "3.19.1"
+zainod = { path = "../../zaino/zainod" }
+
 [build-dependencies]
 vergen-git2 = { workspace = true, features = ["cargo", "rustc"] }
 
