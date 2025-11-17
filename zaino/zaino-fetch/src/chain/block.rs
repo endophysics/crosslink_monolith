@@ -6,6 +6,7 @@ use crate::chain::{
     utils::{read_bytes, read_i32, read_u32, read_zcash_script_i64, CompactSize, ParseFromSlice},
 };
 use sha2::{Digest, Sha256};
+use zebra_chain::{block::FatPointerToBftBlock, serialization::ZcashDeserialize};
 use std::io::Cursor;
 use zaino_proto::proto::compact_formats::{ChainMetadata, CompactBlock};
 
@@ -87,6 +88,8 @@ struct BlockHeaderData {
     ///
     /// Size \[bytes\]: CompactLength
     solution: Vec<u8>,
+
+    fat_pointer_to_bft_block: FatPointerToBftBlock,
 }
 
 impl ParseFromSlice for BlockHeaderData {
@@ -140,6 +143,18 @@ impl ParseFromSlice for BlockHeaderData {
             )?
         };
 
+        let logical_version = if version & 0xffff_0000u32 as i32 != 0 {
+            version.reverse_bits()
+        } else {
+            version
+        };
+
+        let fat_pointer_to_bft_block = if logical_version >= 5 {
+            FatPointerToBftBlock::zcash_deserialize(&mut cursor).expect("Error reading BlockHeaderData::fat_pointer_to_bft_block")
+        } else {
+            FatPointerToBftBlock::null()
+        };
+
         Ok((
             &data[cursor.position() as usize..],
             BlockHeaderData {
@@ -151,6 +166,7 @@ impl ParseFromSlice for BlockHeaderData {
                 n_bits_bytes,
                 nonce,
                 solution,
+                fat_pointer_to_bft_block,
             },
         ))
     }
