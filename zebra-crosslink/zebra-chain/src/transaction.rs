@@ -1699,15 +1699,16 @@ impl Transaction {
             | Transaction::V5 {
                 ref mut expiry_height,
                 ..
+            }
+            | Transaction::VCrosslink {
+                ref mut expiry_height,
+                ..
             } => expiry_height,
             #[cfg(feature = "tx_v6")]
             Transaction::V6 {
                 ref mut expiry_height,
                 ..
             } => expiry_height,
-
-            // @TODO: CROSSLINK TRANSACTION
-            Transaction::VCrosslink { .. } => todo!(),
         }
     }
 
@@ -1719,11 +1720,9 @@ impl Transaction {
             Transaction::V3 { ref mut inputs, .. } => inputs,
             Transaction::V4 { ref mut inputs, .. } => inputs,
             Transaction::V5 { ref mut inputs, .. } => inputs,
+            Transaction::VCrosslink { ref mut inputs, .. } => inputs,
             #[cfg(feature = "tx_v6")]
             Transaction::V6 { ref mut inputs, .. } => inputs,
-
-            // @TODO: CROSSLINK TRANSACTION
-            Transaction::VCrosslink { .. } => todo!(),
         }
     }
 
@@ -1749,6 +1748,10 @@ impl Transaction {
             Transaction::V5 {
                 sapling_shielded_data: Some(sapling_shielded_data),
                 ..
+            }
+            | Transaction::VCrosslink {
+                sapling_shielded_data: Some(sapling_shielded_data),
+                ..
             } => Some(&mut sapling_shielded_data.value_balance),
             #[cfg(feature = "tx_v6")]
             Transaction::V6 {
@@ -1765,15 +1768,16 @@ impl Transaction {
             | Transaction::V5 {
                 sapling_shielded_data: None,
                 ..
+            }
+            | Transaction::VCrosslink {
+                sapling_shielded_data: None,
+                ..
             } => None,
             #[cfg(feature = "tx_v6")]
             Transaction::V6 {
                 sapling_shielded_data: None,
                 ..
             } => None,
-
-            // @TODO: CROSSLINK TRANSACTION
-            Transaction::VCrosslink { .. } => todo!(),
         }
     }
 
@@ -1821,12 +1825,10 @@ impl Transaction {
                 joinsplit_data: None,
                 ..
             }
-            | Transaction::V5 { .. } => Box::new(std::iter::empty()),
+            | Transaction::V5 { .. }
+            | Transaction::VCrosslink { .. } => Box::new(std::iter::empty()),
             #[cfg(feature = "tx_v6")]
             Transaction::V6 { .. } => Box::new(std::iter::empty()),
-
-            // @TODO: CROSSLINK TRANSACTION
-            Transaction::VCrosslink { .. } => todo!(),
         }
     }
 
@@ -1874,12 +1876,10 @@ impl Transaction {
                 joinsplit_data: None,
                 ..
             }
-            | Transaction::V5 { .. } => Box::new(std::iter::empty()),
+            | Transaction::V5 { .. }
+            | Transaction::VCrosslink { .. } => Box::new(std::iter::empty()),
             #[cfg(feature = "tx_v6")]
             Transaction::V6 { .. } => Box::new(std::iter::empty()),
-
-            // @TODO: CROSSLINK TRANSACTION
-            Transaction::VCrosslink { .. } => todo!(),
         }
     }
 
@@ -1897,7 +1897,12 @@ impl Transaction {
             Transaction::V5 {
                 orchard_shielded_data: Some(orchard_shielded_data),
                 ..
-            } => Some(orchard_shielded_data),
+            }
+            | Transaction::VCrosslink {
+                orchard_shielded_data: Some(orchard_shielded_data),
+                ..
+            }
+            => Some(orchard_shielded_data),
             #[cfg(feature = "tx_v6")]
             Transaction::V6 {
                 orchard_shielded_data: Some(orchard_shielded_data),
@@ -1911,15 +1916,16 @@ impl Transaction {
             | Transaction::V5 {
                 orchard_shielded_data: None,
                 ..
+            }
+            | Transaction::VCrosslink {
+                orchard_shielded_data: None,
+                ..
             } => None,
             #[cfg(feature = "tx_v6")]
             Transaction::V6 {
                 orchard_shielded_data: None,
                 ..
             } => None,
-
-            // @TODO: CROSSLINK TRANSACTION
-            Transaction::VCrosslink { .. } => todo!(),
         }
     }
 
@@ -1941,13 +1947,13 @@ impl Transaction {
             Transaction::V5 {
                 ref mut outputs, ..
             } => outputs,
+            Transaction::VCrosslink {
+                ref mut outputs, ..
+            } => outputs,
             #[cfg(feature = "tx_v6")]
             Transaction::V6 {
                 ref mut outputs, ..
             } => outputs,
-
-            // @TODO: CROSSLINK TRANSACTION
-            Transaction::VCrosslink { .. } => todo!(),
         }
     }
 }
