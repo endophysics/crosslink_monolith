@@ -453,7 +453,17 @@ impl DrawCtx {
         unsafe {
             let put = self.draw_command_buffer.add(*self.draw_command_count);
             *self.draw_command_count += 1;
-            *put = DrawCommand::ColoredRectangle { x: x1.max(0.0), x2: x2.min(self.window_width as f32), y: y1.max(0.0) as f32, y2: y2.min(self.window_height as f32), round_pixels: 0.0, color: color };
+            *put = DrawCommand::ColoredRectangle {
+                x: x1.max(0.0),
+                x2: x2.min(self.window_width as f32),
+                y: y1.max(0.0) as f32,
+                y2: y2.min(self.window_height as f32),
+                radius_tl: 0,
+                radius_tr: 0,
+                radius_bl: 0,
+                radius_br: 0,
+                color
+            };
         }
     }
 
@@ -499,11 +509,21 @@ impl DrawCtx {
         self.line(x2, y2, x2 + (fy * thickness * 4.0), y2 + (-fx * thickness * 4.0), thickness, color);
     }
 
-    pub fn rounded_rectangle(&self, x1: isize, y1: isize, x2: isize, y2: isize, radius: isize, color: u32) {
+    pub fn rounded_rectangle(&self, x1: isize, y1: isize, x2: isize, y2: isize, radius_tl: isize, radius_tr: isize, radius_bl: isize, radius_br: isize, color: u32) {
         unsafe {
             let put = self.draw_command_buffer.add(*self.draw_command_count);
             *self.draw_command_count += 1;
-            *put = DrawCommand::ColoredRectangle { x: x1.max(0) as f32, x2: x2.min(self.window_width) as f32, y: y1.max(0) as f32, y2: y2.min(self.window_height) as f32, round_pixels: radius as f32, color, };
+            *put = DrawCommand::ColoredRectangle {
+                x: x1.max(0) as f32,
+                x2: x2.min(self.window_width) as f32,
+                y: y1.max(0) as f32,
+                y2: y2.min(self.window_height) as f32,
+                radius_tl,
+                radius_tr,
+                radius_bl,
+                radius_br,
+                color
+            };
         }
     }
 
@@ -511,14 +531,34 @@ impl DrawCtx {
         unsafe {
             let put = self.draw_command_buffer.add(*self.draw_command_count);
             *self.draw_command_count += 1;
-            *put = DrawCommand::ColoredRectangle { x: x - radius, x2: x + radius, y: y - radius, y2: y + radius, round_pixels: radius, color, };
+            *put = DrawCommand::ColoredRectangle {
+                x: x - radius,
+                x2: x + radius,
+                y: y - radius,
+                y2: y + radius,
+                radius_tl: radius as isize,
+                radius_tr: radius as isize,
+                radius_bl: radius as isize,
+                radius_br: radius as isize,
+                color
+            };
         }
     }
     pub fn circle_square(&self, x: f32, y: f32, radius: f32, round_pixels: f32, color: u32) {
         unsafe {
             let put = self.draw_command_buffer.add(*self.draw_command_count);
             *self.draw_command_count += 1;
-            *put = DrawCommand::ColoredRectangle { x: x - radius, x2: x + radius, y: y - radius, y2: y + radius, round_pixels: round_pixels, color, };
+            *put = DrawCommand::ColoredRectangle {
+                x: x - radius,
+                x2: x + radius,
+                y: y - radius,
+                y2: y + radius,
+                radius_tl: round_pixels as isize,
+                radius_tr: round_pixels as isize,
+                radius_bl: round_pixels as isize,
+                radius_br: round_pixels as isize,
+                color
+            };
         }
     }
 }
@@ -673,7 +713,10 @@ enum DrawCommand {
         x2: f32,
         y: f32,
         y2: f32,
-        round_pixels: f32,
+        radius_tl: isize,
+        radius_tr: isize,
+        radius_bl: isize,
+        radius_br: isize,
         color: u32,
     },
     PixelLineXDef { // will draw one pixel per x
@@ -1257,18 +1300,44 @@ pub fn main_thread_run_program() {
                                                                             row_pixels = row_pixels.byte_add(4 << pixel_row_shift);
                                                                         }
                                                                     }
-                                                                    DrawCommand::ColoredRectangle { x: ofx, x2: ofx2, y: ofy, y2: ofy2, round_pixels, color } => {
+                                                                    DrawCommand::ColoredRectangle {
+                                                                        x: ofx,
+                                                                        x2: ofx2,
+                                                                        y: ofy,
+                                                                        y2: ofy2,
+                                                                        radius_tl,
+                                                                        radius_tr,
+                                                                        radius_bl,
+                                                                        radius_br,
+                                                                        color
+                                                                    } => {
+                                                                        let radius_tl = radius_tl as f32;
+                                                                        let radius_tr = radius_tr as f32;
+                                                                        let radius_bl = radius_bl as f32;
+                                                                        let radius_br = radius_br as f32;
+
+                                                                        // let radius_t = radius_tl.min(radius_tr);
+                                                                        // let radius_t = radius_tl.min(radius_tr);
+
+
                                                                         let ix = (ofx.floor() as u32).max(tile_pixel_x);
                                                                         let ix2 = (ofx2.ceil() as u32).min(tile_pixel_x2);
                                                                         let iy = (ofy.floor() as u32).max(tile_pixel_y);
                                                                         let iy2 = (ofy2.ceil() as u32).min(tile_pixel_y2);
                                                                         if ix >= ix2 || iy >= iy2 { continue; }
                                                                         hasher.write_u64(0x854893982097);
-                                                                        hasher.write_u32(ofx.max(tile_pixel_x as f32 - round_pixels).to_bits());
-                                                                        hasher.write_u32(ofx2.min(tile_pixel_x2 as f32 + round_pixels).to_bits());
-                                                                        hasher.write_u32(ofy.max(tile_pixel_y as f32 - round_pixels).to_bits());
-                                                                        hasher.write_u32(ofy2.min(tile_pixel_y2 as f32 + round_pixels).to_bits());
-                                                                        hasher.write_u32(round_pixels.to_bits());
+                                                                        // hasher.write_u32(ofx.max(tile_pixel_x as f32 - radius).to_bits());
+                                                                        // hasher.write_u32(ofx2.min(tile_pixel_x2 as f32 + radius).to_bits());
+                                                                        // hasher.write_u32(ofy.max(tile_pixel_y as f32 - radius).to_bits());
+                                                                        // hasher.write_u32(ofy2.min(tile_pixel_y2 as f32 + radius).to_bits());
+                                                                        hasher.write_u32(ofx.to_bits());
+                                                                        hasher.write_u32(ofx2.to_bits());
+                                                                        hasher.write_u32(ofy.to_bits());
+                                                                        hasher.write_u32(ofy2.to_bits());
+                                                                        hasher.write_u32(radius_tl.to_bits());
+                                                                        hasher.write_u32(radius_tr.to_bits());
+                                                                        hasher.write_u32(radius_bl.to_bits());
+                                                                        hasher.write_u32(radius_br.to_bits());
                                                                         hasher.write_u32(color);
                                                                         if should_draw == false { continue; }
                                                                         let mut row_pixels = ctx.render_target_0.byte_add(((ix + (iy << pixel_row_shift)) as usize) << 2);
@@ -1282,34 +1351,34 @@ pub fn main_thread_run_program() {
                                                                                 let mut cover_alpha = (1.0 - (ofx - _fx).clamp(0.0, 1.0)) * (ofx2 - _fx).clamp(0.0, 1.0) * row_alpha;
                                                                                 // top left
                                                                                 {
-                                                                                    let lx = _fx-ofx2+round_pixels;
-                                                                                    let ly = ofy-(_fy+1.0)+round_pixels;
+                                                                                    let lx = _fx-ofx2+radius_tl;
+                                                                                    let ly = ofy-(_fy+1.0)+radius_tl;
                                                                                     let v1 = lx*lx.abs()+ly*ly.abs();
-                                                                                    let new_alpha = round_pixels - v1.sqrt();
+                                                                                    let new_alpha = radius_tl - v1.sqrt();
                                                                                     cover_alpha = select_float(v1 >= 0.0, cover_alpha.min(new_alpha), cover_alpha,);
                                                                                 }
                                                                                 // top right
                                                                                 {
-                                                                                    let lx = ofx-(_fx+1.0)+round_pixels;
-                                                                                    let ly = ofy-(_fy+1.0)+round_pixels;
+                                                                                    let lx = ofx-(_fx+1.0)+radius_tr;
+                                                                                    let ly = ofy-(_fy+1.0)+radius_tr;
                                                                                     let v1 = lx*lx.abs()+ly*ly.abs();
-                                                                                    let new_alpha = round_pixels - v1.sqrt();
+                                                                                    let new_alpha = radius_tr - v1.sqrt();
                                                                                     cover_alpha = select_float(v1 >= 0.0, cover_alpha.min(new_alpha), cover_alpha,);
                                                                                 }
                                                                                 // bottom left
                                                                                 {
-                                                                                    let lx = _fx-ofx2+round_pixels;
-                                                                                    let ly = _fy-ofy2+round_pixels;
+                                                                                    let lx = _fx-ofx2+radius_bl;
+                                                                                    let ly = _fy-ofy2+radius_bl;
                                                                                     let v1 = lx*lx.abs()+ly*ly.abs();
-                                                                                    let new_alpha = round_pixels - v1.sqrt();
+                                                                                    let new_alpha = radius_bl - v1.sqrt();
                                                                                     cover_alpha = select_float(v1 >= 0.0, cover_alpha.min(new_alpha), cover_alpha,);
                                                                                 }
                                                                                 // bottom right
                                                                                 {
-                                                                                    let lx = ofx-(_fx+1.0)+round_pixels;
-                                                                                    let ly = _fy-ofy2+round_pixels;
+                                                                                    let lx = ofx-(_fx+1.0)+radius_br;
+                                                                                    let ly = _fy-ofy2+radius_br;
                                                                                     let v1 = lx*lx.abs()+ly*ly.abs();
-                                                                                    let new_alpha = round_pixels - v1.sqrt();
+                                                                                    let new_alpha = radius_br - v1.sqrt();
                                                                                     cover_alpha = select_float(v1 >= 0.0, cover_alpha.min(new_alpha), cover_alpha,);
                                                                                 }
                                                                                 let pixel_alpha = color_alpha * cover_alpha;

@@ -155,17 +155,15 @@ fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
     let mut result = false;
 
-    if !is_rendering {
-        if ui.input().key_held(KeyCode::ControlLeft) || ui.input().key_held(KeyCode::ControlRight) {
-            if ui.input().key_pressed(KeyCode::Equal) {
-                ui.zoom *= 1.0f32 + 1.0f32 / 8f32;
-            }
-            if ui.input().key_pressed(KeyCode::Minus) {
-                ui.zoom /= 1.0f32 + 1.0f32 / 8f32;
-            }
-            if ui.input().key_pressed(KeyCode::Digit0) {
-                ui.zoom = 1.0f32;
-            }
+    if ui.input().key_held(KeyCode::ControlLeft) || ui.input().key_held(KeyCode::ControlRight) {
+        if ui.input().key_pressed(KeyCode::Equal) {
+            ui.zoom *= 1.0f32 + 1.0f32 / 8f32;
+        }
+        if ui.input().key_pressed(KeyCode::Minus) {
+            ui.zoom /= 1.0f32 + 1.0f32 / 8f32;
+        }
+        if ui.input().key_pressed(KeyCode::Digit0) {
+            ui.zoom = 1.0f32;
         }
     }
     if ui.zoom < 0.5f32 {
@@ -220,9 +218,10 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                 .layout()
                     .width(percent!(1.0))
                     .height(percent!(0.1))
+                    .child_gap(child_gap)
                 .end(), |c| {
                 c.with(&Declaration::new()
-                    .corner_radius().all(radius).end()
+                    .corner_radius().top_left(radius).top_right(radius).end()
                     .background_color((0xff, 0, 0).into())
                     .layout()
                         .width(grow!())
@@ -232,7 +231,7 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                     c.text("Wallet", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
                 });
                 c.with(&Declaration::new()
-                    .corner_radius().all(radius).end()
+                    .corner_radius().top_left(radius).top_right(radius).end()
                     .background_color((0xff, 0, 0).into())
                     .layout()
                         .width(grow!())
@@ -242,7 +241,7 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                     c.text("Finalizers", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
                 });
                 c.with(&Declaration::new()
-                    .corner_radius().all(radius).end()
+                    .corner_radius().top_left(radius).top_right(radius).end()
                     .background_color((0xff, 0, 0).into())
                     .layout()
                         .width(grow!())
@@ -302,8 +301,16 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
             let y2 = (command.bounding_box.y + command.bounding_box.height) as isize;
             match command.config {
                 Rectangle(config) => {
-                    let radius = config.corner_radii.top_left as isize;
-                    ui.draw().rounded_rectangle(x1, y1, x2, y2, radius, clay_color_to_u32(config.color));
+                    let radius_tl = config.corner_radii.top_left     as isize;
+                    let radius_tr = config.corner_radii.top_right    as isize;
+                    let radius_bl = config.corner_radii.bottom_left  as isize;
+                    let radius_br = config.corner_radii.bottom_right as isize;
+                    ui.draw().rounded_rectangle(x1, y1, x2, y2, 
+                                                radius_tl,
+                                                radius_tr,
+                                                radius_bl,
+                                                radius_br,
+                                                clay_color_to_u32(config.color));
                 }
                 Text(config) => {
                     ui.draw().text_line(x1 as f32, y1 as f32, config.font_size as f32, config.text, clay_color_to_u32(config.color));
