@@ -1,9 +1,15 @@
+#![allow(warnings)]
+
 use std::{hash::Hash};
 use winit::{event::MouseButton, keyboard::KeyCode};
+use clay_layout as clay;
+use clay_layout::{fit, fixed, grow, percent, Clay, Declaration};
+use clay_layout::render_commands::RenderCommandConfig::{Rectangle, Text};
 
 use super::*;
 
 // make widgets nicer to construct
+#[allow(unused_macros)]
 macro_rules! widget {
     // Base case: only id and flags, no fields
     ($id:expr, $flags:expr) => {{
@@ -103,7 +109,52 @@ pub struct SomeDataToKeepAround {
     pub can_send_messages: bool,
 }
 
-pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui: &mut Context, data: &mut SomeDataToKeepAround) -> bool {
+fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
+    if ui.input().key_pressed(KeyCode::Tab) {
+        ui.debug = !ui.debug;
+    }
+    if ui.input().key_pressed(KeyCode::F5) {
+        unsafe {
+            if *ui.draw().debug_pixel_inspector == None {
+                ui.pixel_inspector_primed = true;
+            } else {
+                *ui.draw().debug_pixel_inspector = None;
+                ui.pixel_inspector_primed = false;
+            }
+        }
+    }
+
+    if ui.pixel_inspector_primed {
+        if ui.input().mouse_pressed(MouseButton::Left) {
+            unsafe {
+                *ui.draw().debug_pixel_inspector = Some((ui.input().mouse_pos().0.clamp(0, ui.draw().window_width) as usize, ui.input().mouse_pos().1.clamp(0, ui.draw().window_height) as usize));
+            }
+            ui.pixel_inspector_primed = false;
+        }
+    }
+
+    if is_rendering {
+        if ui.pixel_inspector_primed {
+            ui.draw().mono_text_line(0.0, 0.0, 16.0, "Pixel Inspector is Primed! Click to select pixel.", 0xff_00ff00);
+        }
+        if let Some((x, y)) = unsafe { *ui.draw().debug_pixel_inspector } {
+            let x = x as isize; let y = y as isize;
+            let mut draw_x = 0;
+            let mut draw_y = 0;
+            if x < ui.draw().window_width/2 { draw_x = ui.draw().window_width - 256 };
+            if y < ui.draw().window_height/2 { draw_y = ui.draw().window_height - 256 };
+            let color = unsafe { *ui.draw().debug_pixel_inspector_last_color };
+            ui.draw().rectangle(draw_x as f32, draw_y as f32, draw_x as f32 + 256.0, draw_y as f32 + 256.0, 0xff_000000 | color);
+            ui.draw().mono_text_line(draw_x as f32, draw_y as f32, 12.0, &format!("({},{}) = {:X}", x, y, color), 0xff_000000 | (color ^ u32::MAX));
+        }
+    }
+
+    return false;
+}
+
+fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
+    let mut result = false;
+
     if ui.input().key_held(KeyCode::ControlLeft) || ui.input().key_held(KeyCode::ControlRight) {
         if ui.input().key_pressed(KeyCode::Equal) {
             ui.zoom *= 1.0f32 + 1.0f32 / 8f32;
@@ -123,758 +174,210 @@ pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui:
     }
     ui.scale = ui.zoom * ui.dpi_scale;
 
-    ui.begin_frame();
+    let (window_w, window_h) = (ui.draw().window_width as f32, ui.draw().window_height as f32);
+    let mouse_pos = (ui.input().mouse_pos().0 as f32, ui.input().mouse_pos().1 as f32);
 
-    if ui.input().key_pressed(KeyCode::Tab) {
-        ui.debug = !ui.debug;
+    let padding = &clay::layout::Padding::all(ui.scale16(8.0));
+    let child_gap = ui.scale16(8.0);
+    const pane_col: clay::Color = clay::Color::rgb(0x12 as f32, 0x12 as f32, 0x12 as f32);
+    const WHITE:    clay::Color = clay::Color::rgb(0xff as f32, 0x12 as f32, 0x12 as f32);
+    let radius = ui.scale(24.0);
+
+    // Begin the layout
+    let clay = magic(ui).clay();
+    clay.set_layout_dimensions((window_w as f32, window_h as f32).into());
+    clay.pointer_state(mouse_pos.into(), ui.input().mouse_held(winit::event::MouseButton::Left));
+    clay.set_measure_text_function_user_data(ui.draw(),
+        |string, text_config, draw| {
+            let h = text_config.font_size as f32;
+            let w = draw.measure_text_line(h, string);
+            clay::math::Dimensions::new(w, h)
+        });
+
+    let mut c = clay.begin::<(), ()>();
+
+    c.with(&Declaration::new()
+        .layout()
+            .width(grow!())
+            .height(grow!())
+            .padding(Padding(padding)).child_gap(child_gap)
+        .end(), |c| {
+        let pane_pct = clay::layout::Sizing::Percent((0.33 * ui.scale).min(0.33));
+
+        // left pane
+        c.with(&Declaration::new()
+            .corner_radius().all(radius).end()
+            .layout()
+                .direction(clay::layout::LayoutDirection::TopToBottom)
+                .width(pane_pct)
+                .height(grow!())
+                .padding(Padding(padding)).child_gap(0)
+            .end()
+            .background_color(pane_col), |c| {
+            c.with(&Declaration::new()
+                .layout()
+                    .width(percent!(1.0))
+                    .height(percent!(0.1))
+                    .child_gap(child_gap)
+                .end(), |c| {
+                c.with(&Declaration::new()
+                    .corner_radius().top_left(radius).top_right(radius).end()
+                    .background_color((0xff, 0, 0).into())
+                    .layout()
+                        .width(grow!())
+                        .height(grow!())
+                    .end(), |c| {
+                    // c.text("0.0000 cTAZ. Hello, World! What a convenient automatic English text wrapping situation that we are living in at the current moment!", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
+                    c.text("Wallet", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
+                });
+                c.with(&Declaration::new()
+                    .corner_radius().top_left(radius).top_right(radius).end()
+                    .background_color((0xff, 0, 0).into())
+                    .layout()
+                        .width(grow!())
+                        .height(grow!())
+                    .end(), |c| {
+                    // c.text("0.0000 cTAZ. Hello, World! What a convenient automatic English text wrapping situation that we are living in at the current moment!", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
+                    c.text("Finalizers", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
+                });
+                c.with(&Declaration::new()
+                    .corner_radius().top_left(radius).top_right(radius).end()
+                    .background_color((0xff, 0, 0).into())
+                    .layout()
+                        .width(grow!())
+                        .height(grow!())
+                    .end(), |c| {
+                    // c.text("0.0000 cTAZ. Hello, World! What a convenient automatic English text wrapping situation that we are living in at the current moment!", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
+                    c.text("History", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
+                });
+            });
+            c.with(&Declaration::new()
+                .background_color((0xff, 0, 0).into())
+                .layout()
+                    .width(grow!())
+                    .height(grow!())
+                .end(), |c| {
+            });
+        });
+
+        // central gap
+        c.with(&Declaration::new()
+            .corner_radius().all(radius).end()
+            .layout()
+                .width(grow!())
+                .height(grow!())
+                .padding(Padding(padding)).child_gap(child_gap)
+            .end(), |_| {});
+
+        // right pane
+        c.with(&Declaration::new()
+            .corner_radius().all(radius).end()
+            .layout()
+                .width(pane_pct)
+                .height(grow!())
+                .padding(Padding(padding)).child_gap(child_gap)
+            .end()
+            .background_color(pane_col), |_| {});
+    });
+
+
+    // Return the list of render commands of your layout
+    let render_commands = c.end();
+
+    fn clay_color_to_u32(color: clay::Color) -> u32 {
+        let r = color.r as u32;
+        let g = color.g as u32;
+        let b = color.b as u32;
+        let a = color.a as u32;
+        let color = (a << 24) | (r << 16) | (g << 8) | b;
+        color
     }
-    if ui.input().key_pressed(KeyCode::F5) {
-        unsafe {
-            if *ui.draw().debug_pixel_inspector == None {
-                ui.pixel_inspector_primed = true;
-            } else {
-                *ui.draw().debug_pixel_inspector = None;
-                ui.pixel_inspector_primed = false;
+
+    if is_rendering {
+        for command in render_commands {
+            let x1 = (command.bounding_box.x)                               as isize;
+            let y1 = (command.bounding_box.y)                               as isize;
+            let x2 = (command.bounding_box.x + command.bounding_box.width)  as isize;
+            let y2 = (command.bounding_box.y + command.bounding_box.height) as isize;
+            match command.config {
+                Rectangle(config) => {
+                    let radius_tl = config.corner_radii.top_left     as isize;
+                    let radius_tr = config.corner_radii.top_right    as isize;
+                    let radius_bl = config.corner_radii.bottom_left  as isize;
+                    let radius_br = config.corner_radii.bottom_right as isize;
+                    ui.draw().rounded_rectangle(x1, y1, x2, y2, 
+                                                radius_tl,
+                                                radius_tr,
+                                                radius_bl,
+                                                radius_br,
+                                                clay_color_to_u32(config.color));
+                }
+                Text(config) => {
+                    ui.draw().text_line(x1 as f32, y1 as f32, config.font_size as f32, config.text, clay_color_to_u32(config.color));
+                }
+                misc => { todo!("Unsupported clay render command: {:?}", misc) }
             }
         }
     }
-    if ui.pixel_inspector_primed {
-        if ui.input().mouse_pressed(MouseButton::Left) {
-            unsafe {
-                *ui.draw().debug_pixel_inspector = Some((ui.input().mouse_pos().0.clamp(0, ui.draw().window_width) as usize, ui.input().mouse_pos().1.clamp(0, ui.draw().window_height) as usize));
-            }
-            ui.pixel_inspector_primed = false;
-        }
-    }
 
-    let mut layout = Rect::new(0f32, 0f32, ui.draw().window_width as f32, ui.draw().window_height as f32);
-    let panel_w    = layout.width() * 0.25 * ui.zoom.min(1.5f32);
-    let inset_amt  = 16.0;
+    result |= dbg_ui(ui, _data, is_rendering);
 
-    let left_panel   = ui.container_ex(layout.cut_from_left(panel_w).inset(inset_amt), Flags::DEFAULT_CONTAINER_FLAGS  | Flags::RESIZABLE_X);
-    let right_panel  = ui.container_ex(layout.cut_from_right(panel_w).inset(inset_amt), Flags::DEFAULT_CONTAINER_FLAGS | Flags::RESIZABLE_X);
-
-    let center_layout = layout.inset(inset_amt);
-    let center_panel  = ui.container_ex(center_layout, Flags::DEFAULT_CONTAINER_FLAGS & !(Flags::DRAW_BACKGROUND | Flags::DRAW_BORDER));
-    ui.non_ui_drawable_area = center_layout;
-
-    ui.push_parent(left_panel);
-    // {
-    //     let layout = Rect {
-    //         x1: 0f32,
-    //         x2: ui.input().mouse_pos().0 as f32,
-    //         y1: 0f32,
-    //         y2: ui.input().mouse_pos().1 as f32,
-    //     };
-    //     let panel  = ui.container_ex(layout, Flags::DEFAULT_CONTAINER_FLAGS); //  & !(Flags::DRAW_BACKGROUND | Flags::DRAW_BORDER));
-    // 
-    //     ui.push_parent(panel);
-    //     ui.pop_parent(panel);
-    // }
-    {
-        // ui.layout(&[ Size::PercentOfParent{ amount: 1.0, tolerance: 0.0 } ]);
-        if ui.button("Wallet") {
-            println!("Wallet Tab!");
-        }
-
-        if ui.button("History") {
-            println!("History Tab!");
-        }
-
-        if ui.button("Finalizers") {
-            println!("Finalizers Tab!");
-        }
-
-        // ui.newline();
-
-        // ui.label("");
-
-        ui.newline_ex(0f32);
-
-        ui.label("0.00000 cTAZ");
-
-        ui.newline_ex(0f32);
-
-        if ui.button("Send") {
-        }
-        if ui.button_ex("Receive", Flags::DEFAULT_BUTTON_FLAGS | Flags::DISABLED).clicked {
-        }
-        if ui.button("Stake") {
-        }
-
-        let event = ui.textbox("0.00000 cTAZ");
-
-    /**/ }
-    ui.pop_parent(left_panel);
-
-    ui.push_parent(center_panel);
-    {
-        // nothing for now
-    }
-    ui.pop_parent(center_panel);
-
-
-    ui.push_parent(right_panel);
-    { /*
-        let event = ui.textbox_ex("Type here!", Flags::DEFAULT_TEXTBOX_FLAGS | if data.can_send_messages { Flags::KEEP_FOCUS } else { Flags::DISABLED });
-        if event.submitted {
-            let text = event.text.trim();
-            if text.len() > 0 {
-                data.messages.push(text.to_string());
-            }
-        }
-
-        if ui.button("Clear Messages") {
-            data.messages.clear();
-        }
-
-        if ui.button(if data.can_send_messages { "Disable Textbox" } else { "Enable Textbox" }) {
-            data.can_send_messages = !data.can_send_messages;
-        }
-
-        if ui.checkbox("I am a checkbox?") {
-            println!("box was checked!");
-        }
-
-        for (i, message) in data.messages.iter().enumerate() {
-            ui.label(&format!("{}##{}", message, i));
-            ui.newline_ex(0f32);
-        }
-    */ }
-    ui.pop_parent(right_panel);
-
-    ui.end_frame();
-
-    if ui.pixel_inspector_primed {
-        ui.draw().mono_text_line(0.0, 0.0, 16.0, "Pixel Inspector is Primed! Click to select pixel.", 0xff_00ff00);
-    }
-    if let Some((x, y)) = unsafe { *ui.draw().debug_pixel_inspector } {
-        let x = x as isize; let y = y as isize;
-        let mut draw_x = 0;
-        let mut draw_y = 0;
-        if x < ui.draw().window_width/2 { draw_x = ui.draw().window_width - 256};
-        if y < ui.draw().window_height/2 { draw_y = ui.draw().window_height - 256};
-        let color = unsafe { *ui.draw().debug_pixel_inspector_last_color };
-        ui.draw().rectangle(draw_x as f32, draw_y as f32, draw_x as f32 + 256.0, draw_y as f32 + 256.0, 0xff_000000 | color);
-        ui.draw().mono_text_line(draw_x as f32, draw_y as f32, 12.0, &format!("({},{}) = {:X}", x, y, color), 0xff_000000 | (color ^ u32::MAX));
-    }
-
-    return false;
+    result
 }
 
-impl Context {
-    pub fn new(style: Style) -> Self {
-        Self { default_style: style, zoom: 1f32, dpi_scale: 1f32, scale: 1f32, ..Default::default() }
-    }
-
-    pub fn scale(&self, size: f32) -> f32 {
-        (size * self.scale).floor()
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    pub fn container(&mut self, rect: Rect) -> WidgetId {
-        return self.container_ex(rect, Flags::DEFAULT_CONTAINER_FLAGS);
-    }
-
-    #[track_caller]
-    pub fn container_ex(&mut self, rect: Rect, flags: Flags) -> WidgetId {
-        let widget = magic(self.make_or_get_widget(flags, None, std::panic::Location::caller()));
-        widget.size = (Size::Exact(self.scale(rect.width())), Size::Exact(self.scale(rect.height())));
-        widget.abs_rect = rect;
-
-        self.update_widget_events(widget);
-        return widget.id;
-    }
-
-    pub fn push_parent(&mut self, id: WidgetId) {
-        self.parents.push(id);
-        self.parent_stack.push(id);
-    }
-
-    pub fn pop_parent(&mut self, id: WidgetId) {
-        let pid = self.parent_stack.pop();
-        debug_assert!(id == pid, "parent ids did not match between push/pop");
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    pub fn label(&mut self, label: &str) {
-        self.label_ex(label, Flags::DEFAULT_LABEL_FLAGS);
-    }
-
-    #[track_caller]
-    pub fn label_ex(&mut self, label: &str, flags: Flags) -> WidgetEvents {
-        let widget  = magic(self.make_or_get_widget(flags, Some(label), std::panic::Location::caller()));
-        let font    = Font(0); // @todo font
-        widget.size = (Size::TextContent(font), Size::TextContent(font));
-        return self.update_widget_events(widget);
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    pub fn button(&mut self, label: &str) -> bool {
-        return self.button_ex(label, Flags::DEFAULT_BUTTON_FLAGS).clicked;
-    }
-
-    #[track_caller]
-    pub fn button_ex(&mut self, label: &str, flags: Flags) -> WidgetEvents {
-        let widget  = magic(self.make_or_get_widget(flags, Some(label), std::panic::Location::caller()));
-        let font    = Font(0); // @todo font
-        widget.size = (Size::TextContent(font), Size::TextContent(font));
-        return self.update_widget_events(widget);
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    pub fn checkbox(&mut self, label: &str) -> bool {
-        return self.checkbox_ex(label, Flags::DEFAULT_CHECKBOX_FLAGS).clicked;
-    }
-
-    #[track_caller]
-    pub fn checkbox_ex(&mut self, label: &str, flags: Flags) -> WidgetEvents {
-        let widget  = magic(self.make_or_get_widget(flags, Some(label), std::panic::Location::caller()));
-        let font    = Font(0); // @todo font
-        widget.size = (Size::PercentOfParent { amount: 1.0, tolerance: 0.5 }, Size::TextContent(font));
-        return self.update_widget_events(widget);
-    }
-
-
-    #[track_caller]
-    #[inline(always)]
-    pub fn textbox(&mut self, label: &str) -> (bool, String) {
-        let e = self.textbox_ex(label, Flags::DEFAULT_TEXTBOX_FLAGS);
-        return (e.submitted, e.text);
-    }
-
-    #[track_caller]
-    pub fn textbox_ex(&mut self, label: &str, flags: Flags) -> WidgetEvents {
-        let widget  = magic(self.make_or_get_widget(flags, Some(label), std::panic::Location::caller()));
-        let font    = Font(0); // @todo font
-        widget.size = (Size::PercentOfParent { amount: 1.0, tolerance: 1.0 }, Size::TextContent(font));
-        return self.update_widget_events(widget);
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    pub fn newline(&mut self) {
-        self.newline_ex(self.get_style().spacing);
-    }
-
-    #[track_caller]
-    pub fn newline_ex(&mut self, height: f32) { // @todo full rearchitecting because this is not how to do newlines long-term
-        let widget  = magic(self.make_or_get_widget(Flags::NONE, None, std::panic::Location::caller()));
-        widget.size = (Size::PercentOfParent { amount: 1.0, tolerance: 0.0 }, Size::Exact(self.scale(height)));
-        self.update_widget_events(widget);
-    }
-
-
-
-    pub fn push_style(&mut self, style: Style) {
-        self.style_stack.push(style);
-    }
-
-    #[track_caller]
-    pub fn pop_style(&mut self) {
-        self.style_stack.pop();
-    }
-
-    pub fn get_style(&self) -> Style {
-        if self.style_stack.empty() {
-            return self.default_style;
-        }
-        else {
-            return *self.style_stack.peek();
-        }
-    }
-
-
-    pub fn begin_frame(&mut self) {
-        self.active_widget = WidgetId::INVALID;
-        self.hot_widget    = WidgetId::INVALID;
-
-        self.parents.clear();
-        self.style_stack.reset();
-        self.clip_stack.reset();
-        self.parent_stack.reset();
-
-        self.draw_commands.clear();
-    }
-
-    pub fn end_frame(&mut self) {
-        let total_parents = self.parents.len();
-
-        // @todo speedup!!!!!!!!!
-
-        // first pass, compute the exact size of widgets
-        for i in 0..total_parents {
-            let widget = magic(self.widgets.get_mut(&self.parents[i]).unwrap());
-            self.compute_absolute_widget_rect(widget);
-        }
-        // second pass, compute widget sizes/positions relative to their parents
-        for i in 0..total_parents {
-            let widget = magic(self.widgets.get_mut(&self.parents[i]).unwrap());
-            self.compute_relative_widget_rect(widget);
-        }
-        // third pass, we can finally render everything
-        for i in 0..total_parents {
-            let widget = magic(self.widgets.get_mut(&self.parents[i]).unwrap());
-            self.push_widget_draw_commands(widget);
-        }
-
-        for cmd in &self.draw_commands {
-            match cmd {
-                DrawCommand::Rect(rect, Some(radius), color) => {
-                    self.draw().rounded_rectangle(rect.x1 as isize, rect.y1 as isize, rect.x2 as isize, rect.y2 as isize, *radius as isize, (*color).into());
-                }
-                DrawCommand::Rect(rect, None, color) => {
-                    self.draw().rectangle(rect.x1, rect.y1, rect.x2, rect.y2, (*color).into());
-                }
-                DrawCommand::Box(rect, thickness, color) => {
-                    let x1 = rect.x1 as isize;
-                    let y1 = rect.y1 as isize;
-                    let x2 = rect.x2 as isize;
-                    let y2 = rect.y2 as isize;
-                    let t  = (*thickness / 2.0) as isize;
-
-                    self.draw().rectangle((x1-t) as f32, (y1-t) as f32, (x1+t) as f32, (y2+t) as f32, (*color).into());
-                    self.draw().rectangle((x2-t) as f32, (y1-t) as f32, (x2+t) as f32, (y2+t) as f32, (*color).into());
-                    self.draw().rectangle((x1-t) as f32, (y1-t) as f32, (x2-t) as f32, (y1+t) as f32, (*color).into());
-                    self.draw().rectangle((x1-t) as f32, (y2-t) as f32, (x2-t) as f32, (y2+t) as f32, (*color).into());
-                }
-                DrawCommand::Circle(x, y, radius, color) => {
-                    self.draw().circle(*x as f32, *y as f32, *radius as f32, (*color).into());
-                }
-
-                DrawCommand::Text(_, x, y, color, text) => {
-                    self.draw().text_line(*x as f32, *y as f32, self.scale(24.0), text, (*color).into());
-                },
-
-                DrawCommand::Scissor(rect) => {
-                    self.draw().set_scissor(rect.x1 as isize, rect.y1 as isize, rect.x2 as isize, rect.y2 as isize);
-                }
-            }
-        }
-    }
+// @Hack this is annoying!
+pub fn Padding(padding: &clay::layout::Padding) -> clay::layout::Padding {
+    clay::layout::Padding::new(padding.left, padding.right, padding.top, padding.bottom)
 }
 
-impl Context {
-    fn update_widget_events(&mut self, widget: &mut Widget) -> WidgetEvents {
-        let mut e = WidgetEvents::default();
-        if widget.flags.has(Flags::HIDDEN | Flags::DISABLED) {
-            if self.active_widget == widget.id {
-                self.active_widget = WidgetId::INVALID;
-            }
-            if self.hot_widget == widget.id {
-                self.hot_widget = WidgetId::INVALID;
-            }
-            if self.hot_input == widget.id {
-                self.hot_input = WidgetId::INVALID;
-            }
-
-            return e;
-        }
-
-        e.mouse = self.input().mouse_pos();
-
-        if widget.flags.has(Flags::CLICKABLE) {
-            if widget.viz_rect.point_within(e.mouse.0 as f32, e.mouse.1 as f32) {
-                self.active_widget = widget.id;
-            }
-
-            if self.active_widget == widget.id {
-                if self.input().mouse_held(MouseButton::Left) {
-                    e.pressed = true;
-                    self.hot_widget = widget.id;
-                }
-                e.hovering = true;
-            }
-
-            if self.hot_widget == widget.id {
-                if self.input().mouse_pressed(MouseButton::Left) {
-                    e.clicked = true;
-                }
-                else if self.input().mouse_pressed(MouseButton::Right) {
-                    e.right_clicked = true;
-                }
-
-                e.pressed = !(e.clicked || e.right_clicked);
-            }
-        }
-
-        if widget.flags.has(Flags::CHECKABLE) {
-            if e.clicked {
-                self.hot_input = widget.id;
-                widget.checked = !widget.checked;
-            }
-        }
-
-        if widget.flags.has(Flags::TYPEABLE) {
-            if e.clicked {
-                self.hot_input = widget.id;
-            }
-
-            if self.hot_input == widget.id {
-                if let Some(text) = &self.input().text_input {
-                    let before_idx   = &widget.text_buf[0..widget.text_idx];
-                    let after_idx    = &widget.text_buf[widget.text_idx..];
-                    let mut new_buf = Vec::new();
-                    new_buf.extend_from_slice(before_idx);
-                    new_buf.extend_from_slice(text);
-                    new_buf.extend_from_slice(after_idx);
-                    widget.text_buf = new_buf;
-                    widget.text_idx += text.len();
-                }
-
-                if self.input().key_pressed(KeyCode::ArrowLeft) {
-                    if widget.text_idx > 0 {
-                        widget.text_idx -= 1;
-                    }
-                }
-                if self.input().key_pressed(KeyCode::ArrowRight) {
-                    if widget.text_idx < widget.text_buf.len() {
-                        widget.text_idx += 1;
-                    }
-                }
-                if self.input().key_pressed(KeyCode::Backspace) {
-                    if widget.text_idx > 0 {
-                        widget.text_buf.remove(widget.text_idx-1);
-                        widget.text_idx -= 1;
-                    }
-                }
-                if self.input().key_pressed(KeyCode::Delete) {
-                    if widget.text_idx < widget.text_buf.len() {
-                        widget.text_buf.remove(widget.text_idx);
-                    }
-                }
-
-                if self.input().key_pressed(KeyCode::Enter) {
-                    e.text      = widget.text_buf.iter().fold(String::new(), |s, c| format!("{}{}", s, c)); // Note(Sam): I will pray for forgiveness for this sin.
-                    e.submitted = true;
-
-                    if !widget.flags.has(Flags::KEEP_FOCUS) {
-                        self.hot_input = WidgetId::INVALID;
-                    }
-
-                    widget.text_buf.clear();
-                    widget.text_idx = 0;
-                }
-
-                if (self.input().key_pressed(KeyCode::Escape))
-                || (self.input().mouse_pressed(MouseButton::Left) && self.hot_widget != widget.id)
-                {
-                    self.hot_input = WidgetId::INVALID;
-                }
-            }
-        }
-
-        if widget.flags.has(Flags::RESIZABLE_X) {
-        }
-
-        return e;
-    }
-
-    fn compute_absolute_widget_rect(&mut self, widget: &mut Widget) {
-        if widget.flags.has(Flags::HIDDEN) {
-            return;
-        }
-
-        let style = self.get_style();
-        let mut computed_width  = 0f32;
-        let mut computed_height = 0f32;
-
-        let border_width = if widget.flags.has(Flags::DRAW_BORDER) { style.border_width } else { 0f32 };
-
-        // SumOfChildren is the only thing that requires computing children first
-        let must_compute_children_first = matches!(widget.size, (Size::SumOfChildren { .. }, _) | (_, Size::SumOfChildren { .. }));
-        if must_compute_children_first {
-            for child in &widget.children {
-                let child = magic(self.widgets.get_mut(child).unwrap());
-                self.compute_absolute_widget_rect(child);
-                computed_width  += child.abs_rect.width();
-                computed_height += child.abs_rect.height();
-            }
-        }
-
-        // x-axis size
-        match widget.size.0 {
-            Size::Exact(width_px) => {
-                computed_width = width_px;
-            }
-
-            Size::TextContent(_font) => {
-                let text_width = self.draw().measure_text_line(self.scale(24.0) /* @todo font */, &widget.display_text);
-                computed_width = text_width as f32 + self.scale(style.padding + border_width) * 2f32;
-            }
-
-            Size::PercentOfParent { amount: x_pct, tolerance: x_tol } => {
-                if let Some(parent_id) = widget.parent {
-                    let parent = magic(self.widgets.get_mut(&parent_id).unwrap());
-                    computed_width = parent.abs_rect.width() * x_pct - self.scale(style.spacing + border_width) * 2f32; // @todo tolerance
-                }
-            }
-
-            Size::SumOfChildren { tolerance: x_tol } => {
-            }
-
-            _ => {}
-        }
-
-        // y-axis size
-        match widget.size.1 {
-            Size::Exact(height_px) => {
-                computed_height = height_px;
-            }
-            Size::TextContent(_font) => {
-                computed_height = self.scale(24f32 /* @todo font */ + (style.padding + border_width) * 2f32);
-            }
-
-            Size::PercentOfParent { amount: y_pct, tolerance: y_tol } => {
-                if let Some(parent_id) = widget.parent {
-                    let parent = magic(self.widgets.get_mut(&parent_id).unwrap());
-                    computed_height = parent.abs_rect.height() * y_pct - self.scale(style.spacing + border_width) * 2f32; // @todo tolerance
-                }
-            }
-
-            Size::SumOfChildren { tolerance: y_tol } => {
-            }
-
-            _ => {}
-        }
-
-        if !must_compute_children_first {
-            for child in &widget.children {
-                let child = magic(self.widgets.get_mut(child).unwrap());
-                self.compute_absolute_widget_rect(child);
-                computed_width  += child.abs_rect.width();
-                computed_height += child.abs_rect.height();
-            }
-        }
-
-        if widget.parent.is_some() {
-            widget.abs_rect.x2 = computed_width;
-            widget.abs_rect.y2 = computed_height;
-        }
-    }
-
-    fn compute_relative_widget_rect(&mut self, widget: &mut Widget) {
-        let style = self.get_style();
-
-        let border_width = if widget.flags.has(Flags::DRAW_BORDER) { style.border_width } else { 0f32 };
-
-        if let Some(parent_id) = widget.parent {
-            let parent = magic(self.widgets.get_mut(&parent_id).unwrap());
-
-            // widget.abs_rect = Rect { x1: 0f32, y1: 0f32, x2: widget.abs_rect.width(), y2: 10.0f32 };
-
-            if parent.cursor.0 > parent.interior.x1 &&
-               parent.cursor.0 + widget.abs_rect.width() >= parent.interior.x2 {
-                parent.cursor.1 += parent.line_height + style.spacing;
-                parent.cursor.0 = parent.interior.x1;
-                parent.line_height = 0f32;
-            }
-
-            widget.interior = widget.abs_rect;
-            // widget.interior = Rect { x1: 0f32, y1: 0f32, x2: widget.abs_rect.width(), y2: widget.abs_rect.height() };
-            // widget.interior = Rect { x1: 0f32, y1: 0f32, x2: widget.abs_rect.width(), y2: 10.0f32 };
-            // widget.interior = Rect { x1: 0f32, y1: 0f32, x2: 0f32, y2: 0f32 };
-            widget.interior.x1 += parent.cursor.0;
-            widget.interior.x2 += parent.cursor.0;
-            widget.interior.y1 += parent.cursor.1;
-            widget.interior.y2 += parent.cursor.1;
-
-            widget.viz_rect = widget.interior;
-
-            parent.cursor.0 += widget.abs_rect.width() + style.spacing;
-            parent.line_height = parent.line_height.max(widget.abs_rect.height());
-        }
-        else {
-            widget.interior = widget.abs_rect;
-            widget.viz_rect = widget.abs_rect;
-            widget.interior.x1 += self.scale(style.spacing + border_width);
-            widget.interior.x2 -= self.scale(style.spacing + border_width);
-            widget.interior.y1 += self.scale(style.spacing + border_width);
-            widget.interior.y2 -= self.scale(style.spacing + border_width);
-            widget.cursor   = (widget.interior.x1, widget.interior.y1);
-        }
-
-        for i in 0..widget.children.len() {
-            let child = magic(self.widgets.get_mut(&widget.children[i]).unwrap());
-            self.compute_relative_widget_rect(child);
-        }
-    }
-
-    fn push_widget_draw_commands(&mut self, widget: &mut Widget) {
-        if widget.flags.has(Flags::HIDDEN) {
-            return;
-        }
-
-        let style = self.get_style();
-
-        let border_width = if widget.flags.has(Flags::DRAW_BORDER) { style.border_width } else { 0f32 };
-
-        let mut widget_color = style.background;
-        if widget.flags.has(Flags::CLICKABLE | Flags::TYPEABLE) {
-            if self.active_widget == widget.id {
-                widget_color = widget_color.dim(2.0); // @todo style
-            }
-            if self.hot_widget == widget.id {
-                widget_color = widget_color.dim(0.1); // @todo style
-            }
-        }
-
-        if widget.flags.has(Flags::DISABLED) {
-            widget_color = widget_color.dim(0.5);
-        }
-
-        if widget.flags.has(Flags::DRAW_BACKGROUND) {
-            let color = if widget.flags.has(Flags::DRAW_BORDER) { style.border } else { widget_color };
-            self.draw_commands.push(DrawCommand::Rect(widget.viz_rect, Some(self.scale(style.rounded_corner_radius) as isize), color));
-
-            if widget.flags.has(Flags::DRAW_BORDER) {
-                let mut r = widget.viz_rect;
-                r.x1 += self.scale(style.border_width);
-                r.x2 -= self.scale(style.border_width);
-                r.y1 += self.scale(style.border_width);
-                r.y2 -= self.scale(style.border_width);
-                self.draw_commands.push(DrawCommand::Rect(r, Some(self.scale(style.rounded_corner_radius - style.border_width * 0.5f32).max(0f32) as isize), widget_color));
-            }
-        }
-
-        if widget.flags.has(Flags::DRAW_PIP) {
-            let color = style.foreground;
-            self.draw_commands.push(DrawCommand::Circle(widget.viz_rect.x1 - 12.0, widget.viz_rect.y1 + (widget.viz_rect.height() / 2.0) - 1.0, 4.0, color)); // @todo style
-
-            if widget.checked {
-                self.draw_commands.push(DrawCommand::Circle(widget.viz_rect.x1 - 12.0, widget.viz_rect.y1 + (widget.viz_rect.height() / 2.0) - 1.0, 2.0, color.dim(0.25))); // @todo style
-            }
-        }
-
-        if widget.flags.has(Flags::DRAW_MONO_TEXT | Flags::DRAW_SERIF_TEXT) {
-            let mut text  = widget.display_text.to_string();
-            let mut color = style.foreground;
-            if widget.flags.has(Flags::TYPEABLE) {
-                if widget.text_buf.len() > 0 {
-                    text = widget.text_buf.iter().fold(String::new(), |s, c| format!("{}{}", s, c)); // Note(Sam): I will pray for forgiveness for this sin.
-                }
-                else {
-                    color = style.foreground.dim(0.5); // @todo style
-                }
-            }
-
-            let color = if widget.flags.has(Flags::DISABLED) { color.dim(0.5) } else { color }; // @todo style
-            let font  = Font((widget.flags & Flags::DRAW_SERIF_TEXT).into()); // @todo font
-            let (mut x, mut y) = (widget.viz_rect.x1, widget.viz_rect.y1);
-            x += self.scale(border_width + style.padding);
-            y += self.scale(border_width + style.padding);
-            self.draw_commands.push(DrawCommand::Text(font, x as isize, y as isize, color, text));
-        }
-
-        if widget.flags.has(Flags::TYPEABLE) && self.hot_input == widget.id {
-            let text_before_idx = widget.text_buf[0..widget.text_idx].iter().fold(String::new(), |s, c| format!("{}{}", s, c)); // Note(Sam): I will pray for forgiveness for this sin.
-
-            let x1: f32;
-            if widget.text_idx == 0 {
-                x1 = widget.viz_rect.x1 + self.scale(1.0 + border_width + style.padding); // @todo style
-            }
-            else {
-                let width_of_current_text = self.draw().measure_text_line(self.scale(24.0) /* @todo font */, &text_before_idx) as f32;
-                x1 = widget.viz_rect.x1 + self.scale(border_width + style.padding) + width_of_current_text as f32;
-            }
-
-            let cursor_rect = Rect::new(x1, widget.viz_rect.y1 + self.scale(4.0), x1 + self.scale(1.0), widget.viz_rect.y2 - self.scale(4.0)); // @todo style
-            self.draw_commands.push(DrawCommand::Rect(cursor_rect, None, Color::DEBUG_RED)); // @todo style
-        }
-
-        if self.debug {
-            self.draw_commands.push(DrawCommand::Box(widget.viz_rect, self.scale(style.border_width), Color::DEBUG_MAGENTA.fade(0.25)));
-        }
-
-        for i in 0..widget.children.len() {
-            let child = magic(self.widgets.get_mut(&widget.children[i]).unwrap());
-            self.push_widget_draw_commands(child);
-        }
-    }
-
-    #[track_caller]
-    fn get_parent_id(&self) -> WidgetId {
-        return *self.parent_stack.peek();
-    }
-
-    fn get_parent(&mut self, id: WidgetId) -> &mut Widget {
-        self.widgets.get_mut(&id).expect("parent widget id did not exist!")
-    }
-
-    fn make_or_get_widget(&mut self, flags: Flags, label: Option<&str>, loc: &std::panic::Location) -> &mut Widget {
-        let mut h = xxhash3_64::Hasher::new();
-        loc.file().hash(&mut h);
-        loc.line().hash(&mut h);
-        loc.column().hash(&mut h);
-
-        let mut display_text = String::new();
-        if let Some(label) = label {
-            label.hash(&mut h);
-
-            if let Some(idx) = label.find("##") {
-                display_text = label[..idx].to_string();
-            }
-            else {
-                display_text = label.to_string();
-            }
-        }
-
-        let id = WidgetId(h.finish());
-        let parent_id = if !self.parent_stack.empty() {
-            let parent_id = self.get_parent_id();
-            let parent    = self.get_parent(parent_id);
-            parent.children.push(id);
-            Some(parent_id)
-        } else {
-            None
-        };
-
-        let widget = self.widgets.entry(id).or_insert_with(|| widget!(id, flags,
-            parent:       parent_id,
-            display_text: display_text,
-        ));
-
-        widget.flags = flags;
-        widget.children.clear();
-
-        return widget;
-    }
-
-    fn draw(&self)  -> &DrawCtx  { unsafe { &*self.draw  } }
-    fn input(&self) -> &InputCtx { unsafe { &*self.input } }
+pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui: &mut Context, data: &mut SomeDataToKeepAround) -> bool {
+    let dummy_input = InputCtx {
+        this_mouse_pos: ui.input().this_mouse_pos,
+        last_mouse_pos: ui.input().last_mouse_pos,
+
+        mouse_down: ui.input().mouse_down,
+        keys_down1: ui.input().keys_down1,
+        keys_down2: ui.input().keys_down2,
+
+        ..Default::default()
+    };
+    let real_input = ui.input;
+    let result =           run_ui(ui, data, false); ui.input = &dummy_input;
+    let result = result || run_ui(ui, data, true);  ui.input =   real_input;
+    return result;
 }
-
 
 #[derive(Debug, Default, Clone)]
 pub struct Context {
     pub input: *const InputCtx,
     pub draw:  *const DrawCtx,
+    pub clay:  *mut   Clay,
+
     pub debug: bool,
     pub pixel_inspector_primed: bool,
-    pub non_ui_drawable_area: Rect,
 
     pub delta: f64,
     pub default_style: Style,
     pub draw_commands: Vec<DrawCommand>,
 
-    pub scale: f32,
+    pub scale:     f32,
+    pub zoom:      f32,
     pub dpi_scale: f32,
-    pub zoom: f32,
+}
 
-    hot_widget:    WidgetId, // (focused, clicked)
-    hot_input:     WidgetId, // (focused, clicked)
-    active_widget: WidgetId, // (hovered)
+impl Context {
+    pub fn new(_style: Style) -> Context { Context { scale: 1f32, zoom: 1f32, dpi_scale: 1f32, ..Default::default() } }
+    fn draw(&self)  -> &DrawCtx  { unsafe { &*self.draw  } }
+    fn input(&self) -> &InputCtx { unsafe { &*self.input } }
+    fn clay(&self)  -> &mut Clay { unsafe { &mut *self.clay } }
 
-    widgets: std::collections::HashMap<WidgetId, Widget>,
-    parents: std::vec::Vec<WidgetId>,
+    fn scale(&self, size: f32) -> f32 { (size * self.scale).floor() }
+    fn scale32(&self, size: f32) -> u32 { self.scale(size) as u32 }
+    fn scale16(&self, size: f32) -> u16 { self.scale(size) as u16 }
 
-    style_stack:  Stack<Style>,
-    clip_stack:   Stack<Rect>,
-    parent_stack: Stack<WidgetId>,
+    fn button(&self) -> bool {
+        false
+    }
 }
 
 bitset!(Flags<u64>,
@@ -949,7 +452,7 @@ enum Size {
     },
 }
 
-#[derive(Debug, Default, Clone)]
+/* #[derive(Debug, Default, Clone)]
 struct Widget {
     id:    WidgetId,
     flags: Flags,
@@ -976,7 +479,7 @@ struct Widget {
     slider_value_max: f32,
 
     checked: bool,
-}
+} */
 
 #[derive(Debug, Default, Clone)]
 pub struct WidgetEvents {
@@ -995,21 +498,21 @@ pub struct WidgetEvents {
     submitted: bool,
 }
 
-#[derive(Debug, Clone)]
+/* #[derive(Debug, Clone)]
 pub enum DrawCommand {
     Scissor(Rect),
     Rect(Rect, Option<isize>, Color),
     Circle(f32, f32, f32, Color),
     Box(Rect, f32, Color),
     Text(Font, isize, isize, Color, String),
-}
+} */
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Font(u64);
 
 //////////////////////////////////////
 
-#[derive(Debug, Default, Clone, Copy)]
+/* #[derive(Debug, Default, Clone, Copy)]
 pub struct Rect {
     pub x1: f32,
     pub y1: f32,
@@ -1106,7 +609,7 @@ impl Cut {
         }
     }
 }
-
+*/
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Color {
     pub r: f32,

@@ -252,6 +252,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
+name = "clay-layout"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9093371d1d7b694c06c4a1707f80432cad37393a4e86cbf9aa9f42373445223e"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "5.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2111,6 +2120,7 @@ name = "visualizer_zcash"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "clay-layout",
  "num_cpus",
  "rand",
  "rodio",

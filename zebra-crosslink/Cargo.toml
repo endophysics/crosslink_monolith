@@ -201,6 +201,9 @@ opt-level = 3
 [profile.dev.package.zcash_proofs]
 opt-level = 3
 
+[profile.dev.package.visualizer_zcash]
+opt-level = 3
+
 
 [profile.release]
 panic = "abort"

@@ -1140,7 +1140,7 @@ impl ParseFromSlice for FullTransaction {
                     ));
                 }
             }
-            3..=5 => {
+            3..=5 | VCROSSLINK_TX_VERSION => {
                 if !f_overwintered {
                     return Err(ParseError::InvalidData(
                         "fOverwintered must be set for tx versions 3 and above".to_string(),
@@ -1155,7 +1155,7 @@ impl ParseFromSlice for FullTransaction {
         }
 
         let n_version_group_id: Option<u32> = match version {
-            3..=5 => Some(read_u32(
+            3..=5 | VCROSSLINK_TX_VERSION => Some(read_u32(
                 &mut cursor,
                 "Error reading FullTransaction::n_version_group_id",
             )?),
