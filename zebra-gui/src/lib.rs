@@ -893,8 +893,12 @@ pub fn main_thread_run_program() {
     draw_ctx._init_font_tracker(FONT_PIXEL_GOHU_14, 15, true, 15);
     draw_ctx._init_font_tracker(FONT_PIXEL_GOHU_14, 16, true, 15);
 
+    let mut gui_clay = clay_layout::Clay::new((1280., 720.).into());
+
     let mut gui_ctx = ui::Context::new(ui::Style::dark());
     let mut some_data_to_keep_around = ui::SomeDataToKeepAround{ ..Default::default() };
+
+    gui_ctx.clay = &mut gui_clay;
 
     // let mut t: f64 = 0.0;
 

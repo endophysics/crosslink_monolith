@@ -2,6 +2,9 @@
 
 use std::{hash::Hash};
 use winit::{event::MouseButton, keyboard::KeyCode};
+use clay_layout as clay;
+use clay_layout::{fit, fixed, grow, percent, Clay, Declaration};
+use clay_layout::render_commands::RenderCommandConfig::{Rectangle, Text};
 
 use super::*;
 
@@ -152,6 +155,130 @@ fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
     let mut result = false;
 
+    if !is_rendering {
+        if ui.input().key_held(KeyCode::ControlLeft) || ui.input().key_held(KeyCode::ControlRight) {
+            if ui.input().key_pressed(KeyCode::Equal) {
+                ui.zoom *= 1.0f32 + 1.0f32 / 8f32;
+            }
+            if ui.input().key_pressed(KeyCode::Minus) {
+                ui.zoom /= 1.0f32 + 1.0f32 / 8f32;
+            }
+            if ui.input().key_pressed(KeyCode::Digit0) {
+                ui.zoom = 1.0f32;
+            }
+        }
+    }
+    if ui.zoom < 0.5f32 {
+        ui.zoom = 0.5f32;
+    }
+    if ui.zoom > 3.0f32 {
+        ui.zoom = 3.0f32;
+    }
+    ui.scale = ui.zoom * ui.dpi_scale;
+
+    let (window_w, window_h) = (ui.draw().window_width as f32, ui.draw().window_height as f32);
+    let mouse_pos = (ui.input().mouse_pos().0 as f32, ui.input().mouse_pos().1 as f32);
+
+    let padding = { let x = ui.scale(8f32) as u16; clay::layout::Padding::new(x, x, x, x) };
+    const pane_col: clay::Color = clay::Color::rgb(0x12 as f32, 0x12 as f32, 0x12 as f32);
+    const WHITE:    clay::Color = clay::Color::rgb(0xff as f32, 0x12 as f32, 0x12 as f32);
+    let radius = ui.scale(24.0);
+
+    // Begin the layout
+    let clay = magic(ui).clay();
+    clay.set_layout_dimensions((window_w as f32, window_h as f32).into());
+    clay.pointer_state(mouse_pos.into(), ui.input().mouse_held(winit::event::MouseButton::Left));
+    clay.set_measure_text_function_user_data(ui.draw(),
+        |string, text_config, draw| {
+            let h = text_config.font_size as f32;
+            let w = draw.measure_text_line(h, string);
+            clay::math::Dimensions::new(w, h)
+        });
+
+    let mut c = clay.begin::<(), ()>();
+
+    c.with(
+        &Declaration::new()
+            .layout()
+                .width(grow!())
+                .height(grow!())
+            .padding(padding)
+            .child_gap(8)
+            .end(),
+        |c| {
+            let pane_pct = clay::layout::Sizing::Percent((0.33 * ui.scale).min(0.33));
+
+            // left pane
+            c.with(
+                &Declaration::new()
+                    .corner_radius().all(radius).end()
+                    .layout()
+                        .width(pane_pct)
+                        .height(grow!())
+                    .end()
+                    .background_color(pane_col),
+                |c| {
+                    c.text("0.0000 cTAZ. Hello, World! What a convenient automatic English text wrapping situation that we are living in at the current moment!", clay::text::TextConfig::new().font_size(ui.scale(24.0) as u16).color((0xff, 0xff, 0xff).into()).end());
+                }
+            );
+
+            // central gap
+            c.with(
+                &Declaration::new()
+                    .corner_radius().all(radius).end()
+                    .layout()
+                        .width(grow!())
+                        .height(grow!())
+                    .end(),
+                |_| {}
+            );
+
+            // right pane
+            c.with(
+                &Declaration::new()
+                    .corner_radius().all(radius).end()
+                    .layout()
+                        .width(pane_pct)
+                        .height(grow!())
+                    .end()
+                    .background_color(pane_col),
+                |_| {}
+            );
+        },
+    );
+
+
+    // Return the list of render commands of your layout
+    let render_commands = c.end();
+
+    fn clay_color_to_u32(color: clay::Color) -> u32 {
+        let r = color.r as u32;
+        let g = color.g as u32;
+        let b = color.b as u32;
+        let a = color.a as u32;
+        let color = (a << 24) | (r << 16) | (g << 8) | b;
+        color
+    }
+
+    if is_rendering {
+        for command in render_commands {
+            let x1 = (command.bounding_box.x)                               as isize;
+            let y1 = (command.bounding_box.y)                               as isize;
+            let x2 = (command.bounding_box.x + command.bounding_box.width)  as isize;
+            let y2 = (command.bounding_box.y + command.bounding_box.height) as isize;
+            match command.config {
+                Rectangle(config) => {
+                    let radius = config.corner_radii.top_left as isize;
+                    ui.draw().rounded_rectangle(x1, y1, x2, y2, radius, clay_color_to_u32(config.color));
+                }
+                Text(config) => {
+                    ui.draw().text_line(x1 as f32, y1 as f32, config.font_size as f32, config.text, clay_color_to_u32(config.color));
+                }
+                misc => { todo!("Unsupported clay render command: {:?}", misc) }
+            }
+        }
+    }
+
     result |= dbg_ui(ui, _data, is_rendering);
 
     result
@@ -178,23 +305,31 @@ pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui:
 pub struct Context {
     pub input: *const InputCtx,
     pub draw:  *const DrawCtx,
+    pub clay:  *mut   Clay,
+
     pub debug: bool,
     pub pixel_inspector_primed: bool,
-    pub non_ui_drawable_area: Rect,
 
     pub delta: f64,
     pub default_style: Style,
     pub draw_commands: Vec<DrawCommand>,
 
+    pub scale:     f32,
+    pub zoom:      f32,
     pub dpi_scale: f32,
 }
 
 impl Context {
-    pub fn new(_style: Style) -> Context {
-        Context { ..Default::default() }
-    }
+    pub fn new(_style: Style) -> Context { Context { scale: 1f32, zoom: 1f32, dpi_scale: 1f32, ..Default::default() } }
     fn draw(&self)  -> &DrawCtx  { unsafe { &*self.draw  } }
     fn input(&self) -> &InputCtx { unsafe { &*self.input } }
+    fn clay(&self)  -> &mut Clay { unsafe { &mut *self.clay } }
+
+    fn scale(&self, size: f32) -> f32 { (size * self.scale).floor() }
+
+    fn button(&self) -> bool {
+        false
+    }
 }
 
 bitset!(Flags<u64>,
@@ -269,7 +404,7 @@ enum Size {
     },
 }
 
-#[derive(Debug, Default, Clone)]
+/* #[derive(Debug, Default, Clone)]
 struct Widget {
     id:    WidgetId,
     flags: Flags,
@@ -296,7 +431,7 @@ struct Widget {
     slider_value_max: f32,
 
     checked: bool,
-}
+} */
 
 #[derive(Debug, Default, Clone)]
 pub struct WidgetEvents {
@@ -315,21 +450,21 @@ pub struct WidgetEvents {
     submitted: bool,
 }
 
-#[derive(Debug, Clone)]
+/* #[derive(Debug, Clone)]
 pub enum DrawCommand {
     Scissor(Rect),
     Rect(Rect, Option<isize>, Color),
     Circle(f32, f32, f32, Color),
     Box(Rect, f32, Color),
     Text(Font, isize, isize, Color, String),
-}
+} */
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct Font(u64);
 
 //////////////////////////////////////
 
-#[derive(Debug, Default, Clone, Copy)]
+/* #[derive(Debug, Default, Clone, Copy)]
 pub struct Rect {
     pub x1: f32,
     pub y1: f32,
@@ -426,7 +561,7 @@ impl Cut {
         }
     }
 }
-
+*/
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Color {
     pub r: f32,
