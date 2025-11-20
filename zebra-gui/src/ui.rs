@@ -194,16 +194,19 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
     const active_tab_col:   clay::Color = pane_col;
 
     const button_col:       clay::Color = clay::Color::rgb(0x24 as f32, 0x24 as f32, 0x24 as f32);
+    const button_hover_col: clay::Color = clay::Color::rgb(0x30 as f32, 0x30 as f32, 0x30 as f32);
 
     const align_center_center: clay::layout::Alignment = clay::layout::Alignment { x: clay::layout::LayoutAlignmentX::Center, y: clay::layout::LayoutAlignmentY::Center };
 
+    let mouse_held    = ui.input().mouse_held(winit::event::MouseButton::Left);
+    let mouse_clicked = ui.input().mouse_pressed(winit::event::MouseButton::Left);
 
     let radius = ui.scale(8.0);
 
     // Begin the layout
     let clay = magic(ui).clay();
     clay.set_layout_dimensions((window_w as f32, window_h as f32).into());
-    clay.pointer_state(mouse_pos.into(), ui.input().mouse_held(winit::event::MouseButton::Left));
+    clay.pointer_state(mouse_pos.into(), mouse_held);
     clay.set_measure_text_function_user_data(ui.draw(), |string, text_config, draw| {
         let h = text_config.font_size as f32;
         let w = draw.measure_text_line(h, string);
@@ -324,7 +327,18 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                     let buttons = ["Send", "Receive", "Claim", "Stake", "Unstake"];
 
                     for button in buttons {
+                        let id = c.id(button);
+                        let hover = c.pointer_over(id);
+                        let (down, click) = (hover && mouse_held, hover && mouse_clicked);
+
+                        let col = if hover {
+                            button_hover_col
+                        } else {
+                            button_col
+                        };
+
                         c.with(&Declaration::new()
+                            .id(id)
                             .layout()
                                 .direction(clay::layout::LayoutDirection::TopToBottom)
                                 .width(fit!())
@@ -335,7 +349,7 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 
                             // Button circle
                             c.with(&Declaration::new()
-                                .background_color(button_col)
+                                .background_color(col)
                                 .corner_radius().all(button_radius).end()
                                 .layout()
                                     .width (fixed!(button_radius * 2.0))
