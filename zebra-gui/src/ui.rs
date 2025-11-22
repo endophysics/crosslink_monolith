@@ -341,22 +341,23 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
     let (window_w, window_h) = (ui.draw().window_width as f32, ui.draw().window_height as f32);
     let mouse_pos = (ui.input().mouse_pos().0 as f32, ui.input().mouse_pos().1 as f32);
 
-    let child_gap = ui.scale16(8.0);
-    let padding = &clay::layout::Padding::all(child_gap);
-    const WHITE:            clay::Color = clay::Color::rgb(0xff as f32, 0xff as f32, 0xff as f32);
-    const pane_col:         clay::Color = clay::Color::rgb(0x12 as f32, 0x12 as f32, 0x12 as f32);
-    const inactive_tab_col: clay::Color = clay::Color::rgb(0x0f as f32, 0x0f as f32, 0x0f as f32);
-    const active_tab_col:   clay::Color = pane_col;
+    let child_gap = ui.scale(8.0);
+    let padding = child_gap.dup4();
 
-    const button_col:       clay::Color = clay::Color::rgb(0x24 as f32, 0x24 as f32, 0x24 as f32);
-    const button_hover_col: clay::Color = clay::Color::rgb(0x30 as f32, 0x30 as f32, 0x30 as f32);
+    const WHITE_CLAY:       clay::Color = clay::Color::rgb(0xff as f32, 0xff as f32, 0xff as f32);
+    const WHITE:            (u8, u8, u8, u8) = (0xff, 0xff, 0xff, 0xff);
+    const pane_col:         (u8, u8, u8, u8) = (0x12, 0x12, 0x12, 0xff);
+    const inactive_tab_col: (u8, u8, u8, u8) = (0x0f, 0x0f, 0x0f, 0xff);
+    const active_tab_col:   (u8, u8, u8, u8) = pane_col;
+    const button_col:       (u8, u8, u8, u8) = (0x24, 0x24, 0x24, 0xff);
+    const button_hover_col: (u8, u8, u8, u8) = (0x30, 0x30, 0x30, 0xff);
 
     const align_center_center: Alignment = Alignment { x: LayoutAlignmentX::Center, y: LayoutAlignmentY::Center };
 
     let mouse_held    = ui.input().mouse_held(winit::event::MouseButton::Left);
     let mouse_clicked = ui.input().mouse_pressed(winit::event::MouseButton::Left);
 
-    let radius = ui.scale(8.0);
+    let radius = ui.scale(8.0).dup4();
 
     // Begin the layout
     let clay = magic(ui).clay();
@@ -370,75 +371,72 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 
     let mut c = clay.begin::<(), ()>();
 
-    c.with(&Declaration::new()
-        .layout()
-            .width(grow!())
-            .height(grow!())
-            .padding(Padding(padding))
-            .child_gap(child_gap)
-        .end(), |c| {
+    ui.item(&mut c, Item {
+        padding, child_gap,
+        width: Grow!(),
+        height: Grow!(),
+        ..Default::default()
+    }, |c| {
         let pane_pct = {
             let pct = 0.25;
             // clay::layout::Sizing::Percent((pct * ui.scale).min(pct))
-            clay::layout::Sizing::Percent(pct * ui.scale)
+            Sizing::Percent(pct * ui.scale)
         };
 
         // left pane
-        c.with(&Declaration::new()
-            .layout()
-                .direction(clay::layout::LayoutDirection::TopToBottom)
-                .width(pane_pct)
-                .height(grow!())
-            .end()
-            , |c| {
+        ui.item(c, Item {
+            direction: Direction::TopToBottom,
+            width: pane_pct,
+            height: Grow!(),
+            ..Default::default()
+        }, |c| {
 
             // tab bar
-            c.with(&Declaration::new()
-                .layout()
-                    .width(percent!(1.0))
-                    .height(fit!())
-                    .child_gap(child_gap)
-                    .child_alignment(align_center_center)
-                .end(), |c| {
+            ui.item(c, Item {
+                child_gap,
+                width: Percent!(1.0),
+                height: Fit!(),
+                align: Align::Center,
+                ..Default::default()
+            }, |c| {
                 let tab_text_h = ui.scale16(18.0);
 
+                let radius = (radius.0, radius.1, 0.0, 0.0);
+
                 // Wallet tab
-                c.with(&Declaration::new()
-                    .background_color(active_tab_col)
-                    .corner_radius().top_left(radius).top_right(radius).end()
-                    .layout()
-                        .width(grow!())
-                        .height(grow!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("Wallet", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    radius, padding,
+                    colour: active_tab_col,
+                    width: Grow!(),
+                    height: Grow!(),
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("Wallet", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
 
                 // Finalizers tab
-                c.with(&Declaration::new()
-                    .background_color(inactive_tab_col)
-                    .corner_radius().top_left(radius).top_right(radius).end()
-                    .layout()
-                        .width(grow!())
-                        .height(grow!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    radius, padding,
+                    colour: inactive_tab_col,
+                    width: Grow!(),
+                    height: Grow!(),
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
 
                 // History tab
-                c.with(&Declaration::new()
-                    .background_color(inactive_tab_col)
-                    .corner_radius().top_left(radius).top_right(radius).end()
-                    .layout()
-                        .width(grow!())
-                        .height(grow!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    radius, padding,
+                    colour: inactive_tab_col,
+                    width: Grow!(),
+                    height: Grow!(),
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
             });
 
@@ -447,7 +445,7 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
             // Main contents
             ui.item(c, Item {
                 colour: (0x12, 0x12, 0x12, 0xff),
-                radius: (0.0, 0.0, radius, radius),
+                radius: (0.0, 0.0, radius.2, radius.3),
                 direction: Direction::TopToBottom,
                 width: Percent!(1.0),
                 height: Grow!(),
@@ -458,14 +456,14 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                 ui.item(c, Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
 
                 // balance container
-                c.with(&Declaration::new()
-                    .layout()
-                        .width(percent!(1.0))
-                        .height(fit!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("0.0000 cTAZ", clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    width: Percent!(1.0),
+                    height: Fit!(),
+                    padding,
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("0.0000 cTAZ", clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
 
                 let child_gap = child_gap as f32;
@@ -479,7 +477,6 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                     ..Default::default()
                 }, |c| {
 
-                    let radius = ui.scale(24.0).dup4();
                     let buttons = ["Send", "Receive", "Faucet", "Stake", "Unstake"];
 
                     for button in buttons {
@@ -502,19 +499,21 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                             ..Default::default()
                         }, |c| {
 
+                            let radius = ui.scale(24.0);
+
                             // Button circle
                             ui.item(c, Item {
-                                colour, radius, padding, child_gap, align: Align::Center,
-                                width: Fixed!(radius.0 * 2.0),
-                                height: Fixed!(radius.0 * 2.0),
+                                colour, radius: radius.dup4(), padding, child_gap, align: Align::Center,
+                                width:  Fixed!(radius * 2.0),
+                                height: Fixed!(radius * 2.0),
                                 ..Default::default()
                             }, |c| {
-                                // let temp_letter_symbol_h = ui.scale16(32.0);
-                                // c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                                let temp_letter_symbol_h = ui.scale16(32.0);
+                                c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                             });
 
                             let button_text_h = ui.scale16(16.0);
-                            c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                            c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                         });
                     }
 
@@ -524,29 +523,23 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
         });
 
         // central gap
-        c.with(&Declaration::new()
-            .corner_radius().all(radius).end()
-            .layout()
-                .width(grow!())
-                .height(grow!())
-                .padding(Padding(padding))
-                .child_gap(child_gap)
-            .end(), |c| {
+        ui.item(c, Item {
+            radius, padding, child_gap,
+            width: Grow!(),
+            height: Grow!(),
+            ..Default::default()
+        }, |c| {
         });
 
-        /*
         // right pane
-        c.with(&Declaration::new()
-            .background_color(pane_col)
-            .corner_radius().all(radius).end()
-            .layout()
-                .width(pane_pct)
-                .height(grow!())
-                .padding(Padding(padding))
-                .child_gap(child_gap)
-            .end(), |c| {
+        ui.item(c, Item {
+            radius, padding, child_gap,
+            colour: pane_col,
+            width: pane_pct,
+            height: Grow!(),
+            ..Default::default()
+        }, |c| {
         });
-        */
     });
 
 
