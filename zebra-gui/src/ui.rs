@@ -153,7 +153,7 @@ fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
     return false;
 }
 
-#[derive(Debug, Default, Copy, Clone)] enum Direction { #[default] TopToBottom, LeftToRight }
+#[derive(Debug, Default, Copy, Clone)] enum Direction { #[default] LeftToRight, TopToBottom }
 #[derive(Debug, Default, Copy, Clone)] enum AlignX    { #[default] Left, Center, Right }
 #[derive(Debug, Default, Copy, Clone)] enum AlignY    { #[default] Top, Center, Bottom }
 #[derive(Debug, Default, Copy, Clone)] struct Align   { x: AlignX, y: AlignY }
@@ -161,14 +161,14 @@ fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 #[derive(Debug, Default, Copy, Clone)] struct Id      { base_id: u32, id: u32, offset: u32, chars: *const u8, len: usize }
 impl Default for Sizing { fn default() -> Self { Self::Fit(0.0, f32::MAX) } }
 impl Align {
-    const TopLeft: Self = Self { y: AlignY::Top, x: AlignX::Left };
-    const Top: Self = Self { y: AlignY::Top, x: AlignX::Center };
-    const TopRight: Self = Self { y: AlignY::Top, x: AlignX::Right };
-    const Left: Self = Self { y: AlignY::Center, x: AlignX::Left };
-    const Center: Self = Self { y: AlignY::Center, x: AlignX::Center };
-    const Right: Self = Self { y: AlignY::Center, x: AlignX::Right };
-    const BottomLeft: Self = Self { y: AlignY::Bottom, x: AlignX::Left };
-    const Bottom: Self = Self { y: AlignY::Bottom, x: AlignX::Center };
+    const TopLeft:     Self = Self { y: AlignY::Top,    x: AlignX::Left };
+    const Top:         Self = Self { y: AlignY::Top,    x: AlignX::Center };
+    const TopRight:    Self = Self { y: AlignY::Top,    x: AlignX::Right };
+    const Left:        Self = Self { y: AlignY::Center, x: AlignX::Left };
+    const Center:      Self = Self { y: AlignY::Center, x: AlignX::Center };
+    const Right:       Self = Self { y: AlignY::Center, x: AlignX::Right };
+    const BottomLeft:  Self = Self { y: AlignY::Bottom, x: AlignX::Left };
+    const Bottom:      Self = Self { y: AlignY::Bottom, x: AlignX::Center };
     const BottomRight: Self = Self { y: AlignY::Bottom, x: AlignX::Right };
 }
 #[macro_export] macro_rules! Fit {
