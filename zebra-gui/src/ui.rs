@@ -559,10 +559,6 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 
     if is_rendering {
         for command in render_commands {
-            if let Rectangle(ref config) = command.config && config.color.a <= 0.0 {
-                continue;
-            }
-
             fn clay_color_to_u32(color: clay::Color) -> u32 {
                 let r = color.r as u32;
                 let g = color.g as u32;
