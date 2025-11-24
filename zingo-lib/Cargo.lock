@@ -675,6 +675,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bip39"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d193de1f7487df1914d3a568b772458861d33f9c54249612cc2893d6915054"
+dependencies = [
+ "bitcoin_hashes",
+ "serde",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -688,6 +699,22 @@ name = "bit-vec"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
+
+[[package]]
+name = "bitcoin-internals"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9425c3bf7089c983facbae04de54513cce73b41c7f9ff8c845b54e7bc64ebbfb"
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1930a4dabfebb8d7d9992db18ebe3ae2876f0a305fab206fd168df931ede293b"
+dependencies = [
+ "bitcoin-internals",
+ "hex-conservative",
+]
 
 [[package]]
 name = "bitflags"
@@ -1122,6 +1149,15 @@ name = "clap_lex"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
+
+[[package]]
+name = "clay-layout"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9093371d1d7b694c06c4a1707f80432cad37393a4e86cbf9aa9f42373445223e"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "clipboard-win"
@@ -2976,6 +3012,12 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "hex-conservative"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "212ab92002354b4819390025006c897e8140934349e8635c9b077f47b4dcbd20"
 
 [[package]]
 name = "hex-literal"
@@ -9239,6 +9281,7 @@ name = "visualizer_zcash"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "clay-layout",
  "num_cpus",
  "rand 0.9.2",
  "rodio",
@@ -9246,6 +9289,7 @@ dependencies = [
  "softbuffer",
  "swash",
  "twox-hash",
+ "wallet",
  "winit",
 ]
 
@@ -9328,11 +9372,17 @@ dependencies = [
 name = "wallet"
 version = "1.0.0-beta.1"
 dependencies = [
+ "bip39",
  "orchard",
  "prost 0.13.5",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "rand_distr",
  "reqwest",
  "rustls 0.23.35",
  "sapling-crypto",
+ "secrecy",
  "tokio",
  "tokio-rustls",
  "tokio-stream",
@@ -9340,10 +9390,13 @@ dependencies = [
  "tonic-build 0.13.1",
  "zcash_client_backend",
  "zcash_client_sqlite",
+ "zcash_keys",
  "zcash_note_encryption",
  "zcash_primitives",
+ "zcash_proofs",
  "zcash_protocol",
  "zcash_transparent",
+ "zebra-chain",
 ]
 
 [[package]]

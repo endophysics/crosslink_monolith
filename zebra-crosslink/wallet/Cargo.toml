@@ -13,6 +13,14 @@ zcash_keys = { workspace = true, features=["transparent-inputs"] }
 zcash_protocol = { workspace = true } # version = "0.7.1"
 zcash_transparent = { workspace = true } # version = "0.6.1"
 zcash_note_encryption = { workspace = true } # version = "0.4.1"
+zcash_proofs = { workspace = true }
+zebra-chain = { path = "../zebra-chain" }
+
+
+rand = { version = "0.8", default-features = false }
+rand_core = { version = "0.6", default-features = false }
+rand_distr = { version = "0.4", default-features = false }
+rand_chacha = "0.3.1"
 
 prost = "0.13"
 tonic = { version = "0.13", default-features = false, features = ["transport", "channel", "tls-ring", "tls-webpki-roots", "prost"] }

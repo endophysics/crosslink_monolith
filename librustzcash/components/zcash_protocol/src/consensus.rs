@@ -458,14 +458,25 @@ impl Parameters for TestNetwork {
 
     fn activation_height(&self, nu: NetworkUpgrade) -> Option<BlockHeight> {
         match nu {
-            NetworkUpgrade::Overwinter => Some(BlockHeight(207_500)),
-            NetworkUpgrade::Sapling => Some(BlockHeight(280_000)),
-            NetworkUpgrade::Blossom => Some(BlockHeight(584_000)),
-            NetworkUpgrade::Heartwood => Some(BlockHeight(903_800)),
-            NetworkUpgrade::Canopy => Some(BlockHeight(1_028_500)),
-            NetworkUpgrade::Nu5 => Some(BlockHeight(1_842_420)),
-            NetworkUpgrade::Nu6 => Some(BlockHeight(2_976_000)),
+            // NetworkUpgrade::Overwinter => Some(BlockHeight(207_500)),
+            // NetworkUpgrade::Sapling => Some(BlockHeight(280_000)),
+            // NetworkUpgrade::Blossom => Some(BlockHeight(584_000)),
+            // NetworkUpgrade::Heartwood => Some(BlockHeight(903_800)),
+            // NetworkUpgrade::Canopy => Some(BlockHeight(1_028_500)),
+            // NetworkUpgrade::Nu5 => Some(BlockHeight(1_842_420)),
+            // NetworkUpgrade::Nu6 => Some(BlockHeight(2_976_000)),
+            // NetworkUpgrade::Nu6_1 => Some(BlockHeight(3_536_500)),
+
+            // @TODO(JUDAH): Should be driven by regtest config!!!!!
+            NetworkUpgrade::Overwinter => Some(BlockHeight(1)),
+            NetworkUpgrade::Sapling => Some(BlockHeight(1)),
+            NetworkUpgrade::Blossom => Some(BlockHeight(1)),
+            NetworkUpgrade::Heartwood => Some(BlockHeight(1)),
+            NetworkUpgrade::Canopy => Some(BlockHeight(1)),
+            NetworkUpgrade::Nu5 => Some(BlockHeight(1)),
+            NetworkUpgrade::Nu6 => Some(BlockHeight(1)),
             NetworkUpgrade::Nu6_1 => Some(BlockHeight(3_536_500)),
+
             #[cfg(zcash_unstable = "nu7")]
             NetworkUpgrade::Nu7 => None,
             #[cfg(zcash_unstable = "zfuture")]
