@@ -3,8 +3,9 @@
 use std::{hash::Hash};
 use winit::{event::MouseButton, keyboard::KeyCode};
 use clay_layout as clay;
-use clay_layout::{fit, fixed, grow, percent, Clay, Declaration};
-use clay_layout::render_commands::RenderCommandConfig::{Rectangle, Text};
+use clay::{fit, fixed, grow, percent, Clay, Declaration};
+use clay::render_commands::RenderCommandConfig::{Rectangle, Text};
+use clay::layout::{Alignment, LayoutAlignmentX, LayoutAlignmentY};
 
 use super::*;
 
@@ -152,6 +153,161 @@ fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
     return false;
 }
 
+#[derive(Debug, Default, Copy, Clone)] enum Direction { #[default] LeftToRight, TopToBottom }
+#[derive(Debug, Default, Copy, Clone)] enum AlignX    { #[default] Left, Center, Right }
+#[derive(Debug, Default, Copy, Clone)] enum AlignY    { #[default] Top, Center, Bottom }
+#[derive(Debug, Default, Copy, Clone)] struct Align   { x: AlignX, y: AlignY }
+#[derive(Debug,          Copy, Clone)] enum Sizing    { Fit(f32, f32), Grow(f32, f32), Fixed(f32), Percent(f32) }
+#[derive(Debug, Default, Copy, Clone)] struct Id      { base_id: u32, id: u32, offset: u32, chars: *const u8, len: usize }
+impl Default for Sizing { fn default() -> Self { Self::Fit(0.0, f32::MAX) } }
+impl Align {
+    const TopLeft:     Self = Self { y: AlignY::Top,    x: AlignX::Left };
+    const Top:         Self = Self { y: AlignY::Top,    x: AlignX::Center };
+    const TopRight:    Self = Self { y: AlignY::Top,    x: AlignX::Right };
+    const Left:        Self = Self { y: AlignY::Center, x: AlignX::Left };
+    const Center:      Self = Self { y: AlignY::Center, x: AlignX::Center };
+    const Right:       Self = Self { y: AlignY::Center, x: AlignX::Right };
+    const BottomLeft:  Self = Self { y: AlignY::Bottom, x: AlignX::Left };
+    const Bottom:      Self = Self { y: AlignY::Bottom, x: AlignX::Center };
+    const BottomRight: Self = Self { y: AlignY::Bottom, x: AlignX::Right };
+}
+#[macro_export] macro_rules! Fit {
+    ($min:expr, $max:expr) => { Sizing::Fit($min, $max) };
+    ($min:expr)            => { Fit!($min, f32::MAX) };
+    ()                     => { Fit!(0.0) };
+}
+#[macro_export] macro_rules! Grow {
+    ($min:expr, $max:expr) => { Sizing::Grow($min, $max) };
+    ($min:expr)            => { Grow!($min, f32::MAX) };
+    ()                     => { Grow!(0.0) };
+}
+#[macro_export] macro_rules! Fixed { ($val:expr) => { Sizing::Fixed($val) }; }
+#[macro_export] macro_rules! Percent {
+    ($percent:expr) => {{
+        const _: () = assert!(
+            $percent >= 0.0 && $percent <= 1.0,
+            "Percent value must be between 0.0 and 1.0 inclusive!"
+        );
+        Sizing::Percent($percent)
+    }};
+}
+
+
+#[derive(Debug, Default, Copy, Clone)]
+struct Item {
+    id: Id,
+    direction: Direction,
+    colour: (u8, u8, u8, u8),
+    radius: (f32, f32, f32, f32),
+    padding: (f32, f32, f32, f32),
+    child_gap: f32,
+    align: Align,
+    width:  Sizing,
+    height: Sizing,
+}
+
+impl Id {
+    fn from_clay(id: clay::Clay_ElementId) -> Self {
+        Self {
+            base_id: id.baseId,
+            id: id.id,
+            offset: id.offset,
+            chars: id.stringId.chars as *const u8,
+            len: id.stringId.length as usize
+        }
+    }
+}
+
+// fn clay_string_from(s: &[u8]) -> clay::Clay_String {
+//     clay::Clay_String {
+//         chars: s.as_ptr() as *const i8,
+//         isStaticallyAllocated: true,
+//         length: s.len() as i32,
+//     }
+// }
+
+impl Context {
+    fn item<
+        'render,
+        'clay: 'render,
+        ImageElementData: 'render,
+        CustomElementData: 'render,
+        T: FnOnce(&mut clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>)
+    >(
+        &self,
+        c: &mut clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>,
+        item: Item,
+        F: T
+    ) {
+        fn sizing(sizing: Sizing) -> clay::layout::Sizing {
+            match sizing {
+                Sizing::Fit(min, max)  => { clay::layout::Sizing::Fit(min, max) }
+                Sizing::Grow(min, max) => { clay::layout::Sizing::Grow(min, max) }
+                Sizing::Fixed(x)       => { clay::layout::Sizing::Fixed(x) }
+                Sizing::Percent(p)     => { clay::layout::Sizing::Percent(p) }
+            }
+        }
+        c.with(
+            &Declaration::new()
+            .background_color(item.colour.into())
+            .id(clay::id::Id {
+                id: clay::Clay_ElementId {
+                    baseId: item.id.base_id,
+                    id: item.id.id,
+                    offset: item.id.offset,
+                    stringId: clay::Clay_String {
+                        isStaticallyAllocated: false,
+                        chars: item.id.chars as *const i8,
+                        length: item.id.len as i32
+                    }
+                }
+            })
+            // .clip(true, true, clay::math::Vector2 { x: 0.0, y: 0.0 })
+            .layout()
+                .width(sizing(item.width))
+                .height(sizing(item.height))
+                .padding(clay::layout::Padding {
+                    left:   item.padding.0 as u16,
+                    right:  item.padding.1 as u16,
+                    top:    item.padding.2 as u16,
+                    bottom: item.padding.3 as u16,
+                })
+                .child_gap(item.child_gap as u16)
+                .child_alignment(Alignment {
+                    x: match item.align.x {
+                        AlignX::Left   => { LayoutAlignmentX::Left }
+                        AlignX::Center => { LayoutAlignmentX::Center }
+                        AlignX::Right  => { LayoutAlignmentX::Right }
+                    },
+                    y: match item.align.y {
+                        AlignY::Top     => { LayoutAlignmentY::Top }
+                        AlignY::Center  => { LayoutAlignmentY::Center }
+                        AlignY::Bottom  => { LayoutAlignmentY::Bottom }
+                    }
+                })
+                .direction(match item.direction {
+                    Direction::TopToBottom => { clay::layout::LayoutDirection::TopToBottom }
+                    Direction::LeftToRight => { clay::layout::LayoutDirection::LeftToRight }
+                })
+            .end()
+            .corner_radius()
+                .top_left(item.radius.0)
+                .top_right(item.radius.1)
+                .bottom_left(item.radius.2)
+                .bottom_right(item.radius.3)
+            .end(),
+            F
+        );
+    }
+}
+
+trait         Dup2: Copy { fn dup2(self) -> (Self, Self); }
+impl<T: Copy> Dup2 for T { fn dup2(self) -> (Self, Self) { (self, self) } }
+trait         Dup3: Copy { fn dup3(self) -> (Self, Self, Self); }
+impl<T: Copy> Dup3 for T { fn dup3(self) -> (Self, Self, Self) { (self, self, self) } }
+trait         Dup4: Copy { fn dup4(self) -> (Self, Self, Self, Self); }
+impl<T: Copy> Dup4 for T { fn dup4(self) -> (Self, Self, Self, Self) { (self, self, self, self) } }
+
 fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
     let mut result = false;
 
@@ -186,22 +342,23 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
     let (window_w, window_h) = (ui.draw().window_width as f32, ui.draw().window_height as f32);
     let mouse_pos = (ui.input().mouse_pos().0 as f32, ui.input().mouse_pos().1 as f32);
 
-    let child_gap = ui.scale16(8.0);
-    let padding = &clay::layout::Padding::all(child_gap);
-    const WHITE:            clay::Color = clay::Color::rgb(0xff as f32, 0xff as f32, 0xff as f32);
-    const pane_col:         clay::Color = clay::Color::rgb(0x12 as f32, 0x12 as f32, 0x12 as f32);
-    const inactive_tab_col: clay::Color = clay::Color::rgb(0x0f as f32, 0x0f as f32, 0x0f as f32);
-    const active_tab_col:   clay::Color = pane_col;
+    let child_gap = ui.scale(8.0);
+    let padding = child_gap.dup4();
 
-    const button_col:       clay::Color = clay::Color::rgb(0x24 as f32, 0x24 as f32, 0x24 as f32);
-    const button_hover_col: clay::Color = clay::Color::rgb(0x30 as f32, 0x30 as f32, 0x30 as f32);
+    const WHITE:            (u8, u8, u8, u8) = (0xff, 0xff, 0xff, 0xff);
+    const WHITE_CLAY:       clay::Color = clay::Color::rgba(WHITE.0 as f32, WHITE.1 as f32, WHITE.2 as f32, WHITE.3 as f32);
+    const pane_col:         (u8, u8, u8, u8) = (0x12, 0x12, 0x12, 0xff);
+    const inactive_tab_col: (u8, u8, u8, u8) = (0x0f, 0x0f, 0x0f, 0xff);
+    const active_tab_col:   (u8, u8, u8, u8) = pane_col;
+    const button_col:       (u8, u8, u8, u8) = (0x24, 0x24, 0x24, 0xff);
+    const button_hover_col: (u8, u8, u8, u8) = (0x30, 0x30, 0x30, 0xff);
 
-    const align_center_center: clay::layout::Alignment = clay::layout::Alignment { x: clay::layout::LayoutAlignmentX::Center, y: clay::layout::LayoutAlignmentY::Center };
+    const align_center_center: Alignment = Alignment { x: LayoutAlignmentX::Center, y: LayoutAlignmentY::Center };
 
     let mouse_held    = ui.input().mouse_held(winit::event::MouseButton::Left);
     let mouse_clicked = ui.input().mouse_pressed(winit::event::MouseButton::Left);
 
-    let radius = ui.scale(8.0);
+    let radius = ui.scale(8.0).dup4();
 
     // Begin the layout
     let clay = magic(ui).clay();
@@ -215,156 +372,149 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 
     let mut c = clay.begin::<(), ()>();
 
-    c.with(&Declaration::new()
-        .layout()
-            .width(grow!())
-            .height(grow!())
-            .padding(Padding(padding))
-            .child_gap(child_gap)
-        .end(), |c| {
+    ui.item(&mut c, Item {
+        padding, child_gap,
+        width: Grow!(),
+        height: Grow!(),
+        ..Default::default()
+    }, |c| {
         let pane_pct = {
             let pct = 0.25;
             // clay::layout::Sizing::Percent((pct * ui.scale).min(pct))
-            clay::layout::Sizing::Percent(pct * ui.scale)
+            Sizing::Percent(pct * ui.scale)
         };
 
         // left pane
-        c.with(&Declaration::new()
-            .layout()
-                .direction(clay::layout::LayoutDirection::TopToBottom)
-                .width(pane_pct)
-                .height(grow!())
-            .end()
-            , |c| {
+        ui.item(c, Item {
+            direction: Direction::TopToBottom,
+            width: pane_pct,
+            height: Grow!(),
+            ..Default::default()
+        }, |c| {
 
             // tab bar
-            c.with(&Declaration::new()
-                .layout()
-                    .width(percent!(1.0))
-                    .height(fit!())
-                    .child_gap(child_gap)
-                    .child_alignment(align_center_center)
-                .end(), |c| {
+            ui.item(c, Item {
+                child_gap,
+                width: Percent!(1.0),
+                height: Fit!(),
+                align: Align::Center,
+                ..Default::default()
+            }, |c| {
                 let tab_text_h = ui.scale16(18.0);
 
+                let radius = (radius.0, radius.1, 0.0, 0.0);
+
                 // Wallet tab
-                c.with(&Declaration::new()
-                    .background_color(active_tab_col)
-                    .corner_radius().top_left(radius).top_right(radius).end()
-                    .layout()
-                        .width(grow!())
-                        .height(grow!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("Wallet", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    radius, padding,
+                    colour: active_tab_col,
+                    width: Grow!(),
+                    height: Grow!(),
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("Wallet", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
 
                 // Finalizers tab
-                c.with(&Declaration::new()
-                    .background_color(inactive_tab_col)
-                    .corner_radius().top_left(radius).top_right(radius).end()
-                    .layout()
-                        .width(grow!())
-                        .height(grow!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    radius, padding,
+                    colour: inactive_tab_col,
+                    width: Grow!(),
+                    height: Grow!(),
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
 
                 // History tab
-                c.with(&Declaration::new()
-                    .background_color(inactive_tab_col)
-                    .corner_radius().top_left(radius).top_right(radius).end()
-                    .layout()
-                        .width(grow!())
-                        .height(grow!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    radius, padding,
+                    colour: inactive_tab_col,
+                    width: Grow!(),
+                    height: Grow!(),
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
             });
 
             let balance_text_h = ui.scale16(48.0);
 
             // Main contents
-            c.with(&Declaration::new()
-                .background_color(pane_col)
-                .corner_radius().bottom_left(radius).bottom_right(radius).end()
-                .layout()
-                    .direction(clay::layout::LayoutDirection::TopToBottom)
-                    .width(percent!(1.0))
-                    .height(grow!())
-                .end(), |c| {
+            ui.item(c, Item {
+                colour: (0x12, 0x12, 0x12, 0xff),
+                radius: (0.0, 0.0, radius.2, radius.3),
+                direction: Direction::TopToBottom,
+                width: Percent!(1.0),
+                height: Grow!(),
+                ..Default::default()
+            }, |c| {
 
                 // spacer
-                c.with(&Declaration::new().layout().width(grow!()).height(fixed!(ui.scale(32.0))).end(), |c| {});
+                ui.item(c, Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
 
                 // balance container
-                c.with(&Declaration::new()
-                    .layout()
-                        .width(percent!(1.0))
-                        .height(fit!())
-                        .padding(Padding(padding))
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
-                    c.text("0.0000 cTAZ", clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                ui.item(c, Item {
+                    width: Percent!(1.0),
+                    height: Fit!(),
+                    padding,
+                    align: Align::Center,
+                    ..Default::default()
+                }, |c| {
+                    c.text("0.0000 cTAZ", clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
 
-                // buttons container
-                c.with(&Declaration::new()
-                    .layout()
-                        .width(percent!(1.0))
-                        .height(fit!())
-                        .padding(Padding(padding))
-                        .child_gap(child_gap)
-                        .child_alignment(align_center_center)
-                    .end(), |c| {
+                let child_gap = child_gap as f32;
+                let padding = child_gap.dup4();
 
-                    let button_radius = ui.scale(24.0);
-                    let buttons = ["Send", "Receive", "Claim", "Stake", "Unstake"];
+                // buttons container
+                ui.item(c, Item {
+                    padding, child_gap, align: Align::Center,
+                    width: Percent!(1.0),
+                    height: Fit!(),
+                    ..Default::default()
+                }, |c| {
+
+                    let buttons = ["Send", "Receive", "Faucet", "Stake", "Unstake"];
 
                     for button in buttons {
                         let id = c.id(button);
                         let hover = c.pointer_over(id);
                         let (down, click) = (hover && mouse_held, hover && mouse_clicked);
 
-                        let col = if hover {
-                            button_hover_col
-                        } else {
-                            button_col
-                        };
+                        const button_col:       (u8, u8, u8, u8) = (0x24, 0x24, 0x24, 0xff);
+                        const button_hover_col: (u8, u8, u8, u8) = (0x30, 0x30, 0x30, 0xff);
 
-                        c.with(&Declaration::new()
-                            .id(id)
-                            .layout()
-                                .direction(clay::layout::LayoutDirection::TopToBottom)
-                                .width(fit!())
-                                .height(fit!())
-                                .child_gap(child_gap)
-                                .child_alignment(align_center_center)
-                            .end(), |c| {
+                        let colour = if hover { button_hover_col } else { button_col };
+
+                        ui.item(c, Item {
+                            id: Id::from_clay(id.id),
+                            direction: Direction::TopToBottom,
+                            width: Fit!(),
+                            height: Fit!(),
+                            child_gap,
+                            align: Align::Center,
+                            ..Default::default()
+                        }, |c| {
+
+                            let radius = ui.scale(24.0);
 
                             // Button circle
-                            c.with(&Declaration::new()
-                                .background_color(col)
-                                .corner_radius().all(button_radius).end()
-                                .layout()
-                                    .width (fixed!(button_radius * 2.0))
-                                    .height(fixed!(button_radius * 2.0))
-                                    .padding(Padding(padding))
-                                    .child_gap(child_gap)
-                                    .child_alignment(align_center_center)
-                                .end()
-                                , |c| {
-                                // let temp_letter_symbol_h = ui.scale16(32.0);
-                                // c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                            ui.item(c, Item {
+                                colour, radius: radius.dup4(), padding, child_gap, align: Align::Center,
+                                width:  Fixed!(radius * 2.0),
+                                height: Fixed!(radius * 2.0),
+                                ..Default::default()
+                            }, |c| {
+                                let temp_letter_symbol_h = ui.scale16(32.0);
+                                c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                             });
 
                             let button_text_h = ui.scale16(16.0);
-                            c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE).alignment(clay::text::TextAlignment::Center).end());
+                            c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                         });
                     }
 
@@ -374,31 +524,23 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
         });
 
         // central gap
-        c.with(&Declaration::new()
-            .corner_radius().all(radius).end()
-            .layout()
-                .width(grow!())
-                .height(grow!())
-                .padding(Padding(padding))
-                .child_gap(child_gap)
-            .end()
-            , |_| {
+        ui.item(c, Item {
+            radius, padding, child_gap,
+            width: Grow!(),
+            height: Grow!(),
+            ..Default::default()
+        }, |c| {
         });
 
-        /*
         // right pane
-        c.with(&Declaration::new()
-            .background_color(pane_col)
-            .corner_radius().all(radius).end()
-            .layout()
-                .width(pane_pct)
-                .height(grow!())
-                .padding(Padding(padding))
-                .child_gap(child_gap)
-            .end()
-            , |_| {
+        ui.item(c, Item {
+            radius, padding, child_gap,
+            colour: pane_col,
+            width: pane_pct,
+            height: Grow!(),
+            ..Default::default()
+        }, |c| {
         });
-        */
     });
 
 
@@ -427,7 +569,7 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                     let radius_tr = config.corner_radii.top_right    as isize;
                     let radius_bl = config.corner_radii.bottom_left  as isize;
                     let radius_br = config.corner_radii.bottom_right as isize;
-                    ui.draw().rounded_rectangle(x1, y1, x2, y2, 
+                    ui.draw().rounded_rectangle(x1, y1, x2, y2,
                                                 radius_tl,
                                                 radius_tr,
                                                 radius_bl,
