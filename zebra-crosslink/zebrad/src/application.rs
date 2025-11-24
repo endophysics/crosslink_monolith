@@ -617,12 +617,14 @@ pub fn boot(app_cell: &'static AppCell<ZebradApp>) -> ! {
     let args = EntryPoint::process_cli_args(env::args_os().collect()).unwrap_or_else(|err| err.exit());
 
     #[cfg(feature = "viz_gui")]
-    std::thread::spawn(move || {
-        zebra_crosslink::wallet::wallet_main();
-    });
-
-    #[cfg(feature = "viz_gui")]
     {
+        let wallet_state = Arc::new(std::sync::Mutex::new(wallet::WalletState::new()));
+        let wallet_state2 = wallet_state.clone();
+
+        std::thread::spawn(move || {
+            zebra_crosslink::wallet::wallet_main(wallet_state2);
+        });
+
         // TODO: gate behind feature-flag
         // TODO: only open the visualization window for the `start` command.
         // i.e.: can we move it to that code without major refactor to make compiler happy?
@@ -630,7 +632,7 @@ pub fn boot(app_cell: &'static AppCell<ZebradApp>) -> ! {
             ZebradApp::run(app_cell, args);
         });
 
-        zebra_crosslink::viz2::viz_main(Some(tokio_root_thread_handle));
+        zebra_crosslink::viz2::viz_main(Some(tokio_root_thread_handle), wallet_state);
     }
 
     #[cfg(not(feature = "viz_gui"))]

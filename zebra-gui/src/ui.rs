@@ -308,8 +308,9 @@ impl<T: Copy> Dup3 for T { fn dup3(self) -> (Self, Self, Self) { (self, self, se
 trait         Dup4: Copy { fn dup4(self) -> (Self, Self, Self, Self); }
 impl<T: Copy> Dup4 for T { fn dup4(self) -> (Self, Self, Self, Self) { (self, self, self, self) } }
 
-fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
+fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
     let mut result = false;
+    let mut balance_str = String::new();
 
     const MIN_ZOOM: f32 = 0.5;
     const MAX_ZOOM: f32 = 2.0;
@@ -464,7 +465,11 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                     align: Align::Center,
                     ..Default::default()
                 }, |c| {
-                    c.text("0.0000 cTAZ", clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                    let balance = wallet_state.lock().unwrap().balance;
+                    let zec_full = balance / 100_000_000;
+                    let zec_part = balance % 100_000_000;
+                    balance_str = format!("{}.{} cTAZ", zec_full, &format!("{:03}", zec_part)[..3]);
+                    c.text(&balance_str, clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                 });
 
                 let child_gap = child_gap as f32;
@@ -605,7 +610,7 @@ pub fn Padding(padding: &clay::layout::Padding) -> clay::layout::Padding {
     clay::layout::Padding::new(padding.left, padding.right, padding.top, padding.bottom)
 }
 
-pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui: &mut Context, data: &mut SomeDataToKeepAround) -> bool {
+pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui: &mut Context, data: &mut SomeDataToKeepAround, wallet_state: Arc<Mutex<wallet::WalletState>>) -> bool {
     let dummy_input = InputCtx {
         this_mouse_pos: ui.input().this_mouse_pos,
         last_mouse_pos: ui.input().last_mouse_pos,
@@ -616,8 +621,8 @@ pub fn demo_of_rendering_stuff_with_context_that_allocates_in_the_background(ui:
 
         ..Default::default()
     };
-    let real_input = ui.input; let result =           run_ui(ui, data, false);
-    ui.input = &dummy_input;   let result = result || run_ui(ui, data, true);
+    let real_input = ui.input; let result =           run_ui(ui, wallet_state.clone(), data, false);
+    ui.input = &dummy_input;   let result = result || run_ui(ui, wallet_state.clone(), data, true);
     ui.input =   real_input;
     return result;
 }

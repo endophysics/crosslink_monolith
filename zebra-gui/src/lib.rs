@@ -4,6 +4,9 @@
 mod ui;
 use ui::*;
 
+use std::sync::{Arc, Mutex};
+use wallet;
+
 mod viz_gui;
 pub use viz_gui::*;
 
@@ -844,7 +847,7 @@ pub static SOUND_UI_HOVER: &[u8] = include_bytes!("../assets/ui_hover.ogg");
 const DRAW_CALL_MAX: usize = 16384;
 const GLYPH_RUN_MAX: usize = 16384;
 
-pub fn main_thread_run_program() {
+pub fn main_thread_run_program(wallet_state: Arc<Mutex<wallet::WalletState>>) {
 
     let mut viz_state = viz_gui_init();
 
@@ -1237,7 +1240,7 @@ pub fn main_thread_run_program() {
                                             viz_gui_draw_the_stuff_for_the_things(&mut viz_state, &draw_ctx, dt as f32, &input_ctx);
 
                                             {
-                                                let should_quit = demo_of_rendering_stuff_with_context_that_allocates_in_the_background(&mut gui_ctx, &mut some_data_to_keep_around);
+                                                let should_quit = demo_of_rendering_stuff_with_context_that_allocates_in_the_background(&mut gui_ctx, &mut some_data_to_keep_around, wallet_state.clone());
                                                 if should_quit {
                                                     elwt.exit();
                                                 }
