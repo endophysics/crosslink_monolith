@@ -262,6 +262,7 @@ impl Context {
                     }
                 }
             })
+            // .clip(true, true, clay::math::Vector2 { x: 0.0, y: 0.0 })
             .layout()
                 .width(sizing(item.width))
                 .height(sizing(item.height))
@@ -344,8 +345,8 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
     let child_gap = ui.scale(8.0);
     let padding = child_gap.dup4();
 
-    const WHITE_CLAY:       clay::Color = clay::Color::rgb(0xff as f32, 0xff as f32, 0xff as f32);
     const WHITE:            (u8, u8, u8, u8) = (0xff, 0xff, 0xff, 0xff);
+    const WHITE_CLAY:       clay::Color = clay::Color::rgba(WHITE.0 as f32, WHITE.1 as f32, WHITE.2 as f32, WHITE.3 as f32);
     const pane_col:         (u8, u8, u8, u8) = (0x12, 0x12, 0x12, 0xff);
     const inactive_tab_col: (u8, u8, u8, u8) = (0x0f, 0x0f, 0x0f, 0xff);
     const active_tab_col:   (u8, u8, u8, u8) = pane_col;
@@ -568,7 +569,7 @@ fn run_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
                     let radius_tr = config.corner_radii.top_right    as isize;
                     let radius_bl = config.corner_radii.bottom_left  as isize;
                     let radius_br = config.corner_radii.bottom_right as isize;
-                    ui.draw().rounded_rectangle(x1, y1, x2, y2, 
+                    ui.draw().rounded_rectangle(x1, y1, x2, y2,
                                                 radius_tl,
                                                 radius_tr,
                                                 radius_bl,
