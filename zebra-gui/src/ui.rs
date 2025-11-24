@@ -362,6 +362,10 @@ impl<T: Copy> Dup3 for T { fn dup3(self) -> (Self, Self, Self) { (self, self, se
 trait         Dup4: Copy { fn dup4(self) -> (Self, Self, Self, Self); }
 impl<T: Copy> Dup4 for T { fn dup4(self) -> (Self, Self, Self, Self) { (self, self, self, self) } }
 
+
+#[derive(Debug, Default, Copy, Clone, PartialEq)] enum PaneTabL { #[default] Wallet, Finalizers, History }
+#[derive(Debug, Default, Copy, Clone, PartialEq)] enum PaneTabR { #[default] Faucet, Roster, Settings }
+
 fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
     let mut result = false;
     let mut balance_str = String::new();
@@ -426,6 +430,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
     });
 
     let mut clicked_id = ui.clicked_id;
+    let mut pane_tab_l = ui.pane_tab_l; // @Todo: how to not have to do this in rust?
 
     let mut c = clay.begin::<(), ()>();
 
@@ -457,48 +462,57 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 align: Align::Center,
                 ..Default::default()
             }, |c| {
-                let tab_text_h = ui.scale16(18.0);
+                let mut tab = |label, pane_tab| {
+                    let radius = (radius.0, radius.1, 0.0, 0.0);
 
-                let radius = (radius.0, radius.1, 0.0, 0.0);
+                    let id = Id::from_clay(c.id(label));
+                    let (clicked, _) = ui.button(c, &mut clicked_id, id);
+                    if clicked {
+                        pane_tab_l = pane_tab;
+                    }
 
-                // Wallet tab
-                ui.item(c, Item {
-                    radius, padding,
-                    colour: active_tab_col,
-                    width: Grow!(),
-                    height: Grow!(),
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    c.text("Wallet", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
+                    ui.item(c, Item {
+                        id,
+                        radius, padding,
+                        colour: if ui.pane_tab_l == pane_tab { active_tab_col } else { inactive_tab_col },
+                        width: Grow!(),
+                        height: Grow!(),
+                        align: Align::Center,
+                        ..Default::default()
+                    }, |c| {
+                        let tab_text_h = ui.scale16(18.0);
+                        c.text(label, clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                    });
+                };
 
-                // Finalizers tab
-                ui.item(c, Item {
-                    radius, padding,
-                    colour: inactive_tab_col,
-                    width: Grow!(),
-                    height: Grow!(),
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
+                tab("Wallet", PaneTabL::Wallet);
+                tab("Finalizers", PaneTabL::Finalizers);
+                tab("History", PaneTabL::History);
 
-                // History tab
-                ui.item(c, Item {
-                    radius, padding,
-                    colour: inactive_tab_col,
-                    width: Grow!(),
-                    height: Grow!(),
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
+                // // Finalizers tab
+                // ui.item(c, Item {
+                //     radius, padding,
+                //     colour: inactive_tab_col,
+                //     width: Grow!(),
+                //     height: Grow!(),
+                //     align: Align::Center,
+                //     ..Default::default()
+                // }, |c| {
+                //     c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                // });
+
+                // // History tab
+                // ui.item(c, Item {
+                //     radius, padding,
+                //     colour: inactive_tab_col,
+                //     width: Grow!(),
+                //     height: Grow!(),
+                //     align: Align::Center,
+                //     ..Default::default()
+                // }, |c| {
+                //     c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                // });
             });
-
-            let balance_text_h = ui.scale16(48.0);
 
             // Main contents
             ui.item(c, Item {
@@ -510,73 +524,83 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 ..Default::default()
             }, |c| {
 
-                // spacer
-                ui.item(c, Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
+                match ui.pane_tab_l {
+                PaneTabL::Wallet => {
+                    let balance_text_h = ui.scale16(48.0);
 
-                // balance container
-                ui.item(c, Item {
-                    width: Percent!(1.0),
-                    height: Fit!(),
-                    padding,
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    let balance = wallet_state.lock().unwrap().balance;
-                    let zec_full = balance / 100_000_000;
-                    let zec_part = balance % 100_000_000;
-                    balance_str = format!("{}.{} cTAZ", zec_full, &format!("{:03}", zec_part)[..3]);
-                    c.text(&balance_str, clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
+                    // spacer
+                    ui.item(c, Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
 
-                let child_gap = child_gap as f32;
-                let padding = child_gap.dup4();
+                    // balance container
+                    ui.item(c, Item {
+                        width: Percent!(1.0),
+                        height: Fit!(),
+                        padding,
+                        align: Align::Center,
+                        ..Default::default()
+                    }, |c| {
+                        let balance = wallet_state.lock().unwrap().balance;
+                        let zec_full = balance / 100_000_000;
+                        let zec_part = balance % 100_000_000;
+                        balance_str = format!("{}.{} cTAZ", zec_full, &format!("{:03}", zec_part)[..3]);
+                        c.text(&balance_str, clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                    });
 
-                // buttons container
-                ui.item(c, Item {
-                    padding, child_gap, align: Align::Center,
-                    width: Percent!(1.0),
-                    height: Fit!(),
-                    ..Default::default()
-                }, |c| {
+                    let child_gap = child_gap as f32;
+                    let padding = child_gap.dup4();
 
-                    let mut f = |button| {
-                        let id = Id::from_clay(c.id(button));
-                        let (clicked, colour) = ui.button(c, &mut clicked_id, id);
-                        ui.item(c, Item {
-                            id, child_gap, align: Align::Center,
-                            direction: Direction::TopToBottom,
-                            width: Fit!(),
-                            height: Fit!(),
-                            ..Default::default()
-                        }, |c| {
+                    // buttons container
+                    ui.item(c, Item {
+                        padding, child_gap, align: Align::Center,
+                        width: Percent!(1.0),
+                        height: Fit!(),
+                        ..Default::default()
+                    }, |c| {
 
-                            let radius = ui.scale(24.0);
-
-                            // Button circle
+                        let mut f = |button| {
+                            let id = Id::from_clay(c.id(button));
+                            let (clicked, colour) = ui.button(c, &mut clicked_id, id);
                             ui.item(c, Item {
-                                colour, radius: radius.dup4(), padding, child_gap, align: Align::Center,
-                                width:  Fixed!(radius * 2.0),
-                                height: Fixed!(radius * 2.0),
+                                id, child_gap, align: Align::Center,
+                                direction: Direction::TopToBottom,
+                                width: Fit!(),
+                                height: Fit!(),
                                 ..Default::default()
                             }, |c| {
-                                let temp_letter_symbol_h = ui.scale16(32.0);
-                                c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+
+                                let radius = ui.scale(24.0);
+
+                                // Button circle
+                                ui.item(c, Item {
+                                    colour, radius: radius.dup4(), padding, child_gap, align: Align::Center,
+                                    width:  Fixed!(radius * 2.0),
+                                    height: Fixed!(radius * 2.0),
+                                    ..Default::default()
+                                }, |c| {
+                                    let temp_letter_symbol_h = ui.scale16(32.0);
+                                    c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                                });
+
+                                let button_text_h = ui.scale16(16.0);
+                                c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                             });
+                            clicked
+                        };
 
-                            let button_text_h = ui.scale16(16.0);
-                            c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                        });
-                        clicked
-                    };
+                        if f("Send")    { println!("Send!");    }
+                        if f("Receive") { println!("Receive!"); }
+                        if f("Faucet")  { println!("Faucet!");  }
+                        if f("Stake")   { println!("Stake!");   }
+                        if f("Unstake") { println!("Unstake!"); }
 
-                    if f("Send")    { println!("Send!");    }
-                    if f("Receive") { println!("Receive!"); }
-                    if f("Faucet")  { println!("Faucet!");  }
-                    if f("Stake")   { println!("Stake!");   }
-                    if f("Unstake") { println!("Unstake!"); }
+                    });
 
-                });
-
+                }
+                PaneTabL::Finalizers => {
+                }
+                PaneTabL::History => {
+                }
+                }
             });
         });
 
@@ -601,6 +625,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
     });
 
     ui.clicked_id = clicked_id;
+    ui.pane_tab_l = pane_tab_l;
 
 
     // Return the list of render commands of your layout
@@ -699,6 +724,9 @@ pub struct Context {
     pub dpi_scale: f32,
 
     pub clicked_id: Id,
+
+    pub pane_tab_l: PaneTabL,
+    pub pane_tab_r: PaneTabR,
 }
 
 impl Context {
