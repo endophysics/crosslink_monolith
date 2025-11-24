@@ -4,11 +4,6 @@ use orchard::note_encryption::{CompactAction};
 use tokio_rustls::rustls;
 use tonic::client::GrpcService;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
-use zcash_client_backend::proto::compact_formats::CompactTx;
-use zcash_client_backend::proto::service::ChainSpec;
-use zcash_client_backend::proto::service::Duration;
-use zcash_client_backend::proto::service::Empty;
-use zcash_client_backend::proto::service::LightdInfo;
 use zcash_note_encryption::try_compact_note_decryption;
 use std::future::Future;
 use std::sync::Arc;
@@ -22,13 +17,44 @@ use rustls::crypto::CryptoProvider;
 use rustls::crypto::verify_tls12_signature;
 use rustls::crypto::verify_tls13_signature;
 use tokio::runtime::Builder;
-use zcash_client_backend::keys::{UnifiedAddressRequest, UnifiedIncomingViewingKey};
-use zcash_client_backend::proto::service::{BlockId};
-use zcash_client_backend::proto::service::BlockRange;
-use zcash_client_backend::proto::service::{
-    compact_tx_streamer_client::CompactTxStreamerClient
+use zcash_client_backend::{
+    address::{
+        UnifiedAddress,
+    },
+    encoding::AddressCodec,
+    keys::{
+        UnifiedAddressRequest,
+        UnifiedIncomingViewingKey,
+        UnifiedSpendingKey,
+    },
+    proto::{
+        compact_formats::CompactTx,
+        service::{
+            BlockId,
+            BlockRange,
+            ChainSpec,
+            Duration,
+            Empty,
+            LightdInfo,
+            compact_tx_streamer_client::CompactTxStreamerClient
+        }
+    },
 };
-use zcash_primitives::consensus::MAIN_NETWORK;
+use zcash_primitives::{
+    consensus::{
+        MAIN_NETWORK,
+        TEST_NETWORK,
+        NetworkType,
+        Parameters,
+    },
+};
+use zcash_transparent::{
+    address::TransparentAddress,
+    keys::{
+        IncomingViewingKey,
+        TransparentKeyScope,
+    },
+};
 
 fn the_future_is_now<F: Future>(future: F) -> F::Output {
     Builder::new_current_thread()
@@ -75,6 +101,34 @@ pub fn wallet_main() {
     let cdb = zcash_client_sqlite::BlockDb::for_path(":memory:").unwrap();
     zcash_client_sqlite::chain::init::init_cache_database(&cdb).unwrap();
 
+    let network = &TEST_NETWORK;
+
+    // miner/faucet wallet setup
+    let miner_t_addr = {
+        use secrecy::ExposeSecret;
+
+        let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let mnemonic = bip39::Mnemonic::parse(phrase).unwrap();
+        let bip39_passphrase = ""; // optional
+        let seed64 = mnemonic.to_seed(bip39_passphrase);
+        let seed = secrecy::SecretVec::new(seed64[..32].to_vec());
+
+        // 2. Derive Unified Spending Key (USK) from seed
+        let account_id = zcash_primitives::zip32::AccountId::try_from(0).unwrap();
+        let usk = UnifiedSpendingKey::from_seed(network, seed.expose_secret(), account_id).unwrap();
+        let (t_addr, child_index) = usk.transparent()
+            .to_account_pubkey()
+            .derive_external_ivk()
+            .unwrap()
+            .default_address();
+        let account_pubkey = usk.transparent().to_account_pubkey();
+        let address_pubkey = account_pubkey.derive_address_pubkey(TransparentKeyScope::EXTERNAL, child_index).unwrap();
+        TransparentAddress::from_pubkey(&address_pubkey)
+    };
+    let miner_t_addr_str = miner_t_addr.encode(network);
+    println!("Faucet miner t-address: {}", miner_t_addr_str);
+
+    let mut seen_block_height = 0;
     loop {
         the_future_is_now(async {
             let mut client = CompactTxStreamerClient::new(Channel::from_static("http://localhost:18233").connect().await.unwrap());
