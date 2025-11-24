@@ -207,13 +207,27 @@ struct Item {
 }
 
 impl Id {
-    fn from_clay(id: clay::Clay_ElementId) -> Self {
+    fn from_clay(id: clay::id::Id) -> Self {
         Self {
-            base_id: id.baseId,
-            id: id.id,
-            offset: id.offset,
-            chars: id.stringId.chars as *const u8,
-            len: id.stringId.length as usize
+            base_id: id.id.baseId,
+            id: id.id.id,
+            offset: id.id.offset,
+            chars: id.id.stringId.chars as *const u8,
+            len: id.id.stringId.length as usize
+        }
+    }
+    fn to_clay(id: Self) -> clay::id::Id {
+        clay::id::Id {
+            id: clay::Clay_ElementId {
+                baseId: id.base_id,
+                id: id.id,
+                offset: id.offset,
+                stringId: clay::Clay_String {
+                    isStaticallyAllocated: false,
+                    chars: id.chars as *const i8,
+                    length: id.len as i32
+                }
+            }
         }
     }
 }
@@ -223,6 +237,18 @@ impl Id {
 //         chars: s.as_ptr() as *const i8,
 //         isStaticallyAllocated: true,
 //         length: s.len() as i32,
+//     }
+// }
+
+// pub fn clay_test() {
+//     unsafe {
+//         clay::Clay_SetCurrentContext(std::ptr::null_mut() as *mut clay::Clay_Context);
+//         clay::Clay__OpenElement();
+//         let decl = clay::Clay_ElementDeclaration {
+//             backgroundColor: (0.0, 0.0, 0.0, 0.0).into(),
+// 
+//         };
+//         clay::Clay__ConfigureOpenElement();
 //     }
 // }
 
@@ -250,18 +276,7 @@ impl Context {
         c.with(
             &Declaration::new()
             .background_color(item.colour.into())
-            .id(clay::id::Id {
-                id: clay::Clay_ElementId {
-                    baseId: item.id.base_id,
-                    id: item.id.id,
-                    offset: item.id.offset,
-                    stringId: clay::Clay_String {
-                        isStaticallyAllocated: false,
-                        chars: item.id.chars as *const i8,
-                        length: item.id.len as i32
-                    }
-                }
-            })
+            .id(Id::to_clay(item.id))
             // .clip(true, true, clay::math::Vector2 { x: 0.0, y: 0.0 })
             .layout()
                 .width(sizing(item.width))
@@ -298,6 +313,45 @@ impl Context {
             .end(),
             F
         );
+    }
+
+    fn button<
+        'render,
+        'clay: 'render,
+        ImageElementData: 'render,
+        CustomElementData: 'render,
+    >(
+        &self,
+        c: &mut clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>,
+        clicked_id: &mut Id,
+        id: Id
+    ) -> (bool, (u8, u8, u8, u8)) {
+        let mouse_held    = self.input().mouse_held(winit::event::MouseButton::Left);
+        let mouse_clicked = self.input().mouse_pressed(winit::event::MouseButton::Left);
+
+        let hover = c.pointer_over(Id::to_clay(id));
+        let (down, click) = (hover && mouse_held, hover && mouse_clicked);
+        if click {
+            *clicked_id = id;
+        }
+
+        const button_col:       (u8, u8, u8, u8) = (0x24, 0x24, 0x24, 0xff);
+        const button_hover_col: (u8, u8, u8, u8) = (0x30, 0x30, 0x30, 0xff);
+        const button_down_col:  (u8, u8, u8, u8) = (0x1e, 0x1e, 0x1e, 0xff);
+
+        let colour = if down || click {
+            if clicked_id.id == id.id {
+                button_down_col
+            } else {
+                button_col
+            }
+        } else if hover {
+            button_hover_col
+        } else {
+            button_col
+        };
+
+        (click, colour)
     }
 }
 
@@ -370,6 +424,8 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
         let w = draw.measure_text_line(h, string);
         clay::math::Dimensions::new(w, h)
     });
+
+    let mut clicked_id = ui.clicked_id;
 
     let mut c = clay.begin::<(), ()>();
 
@@ -483,25 +539,14 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                     ..Default::default()
                 }, |c| {
 
-                    let buttons = ["Send", "Receive", "Faucet", "Stake", "Unstake"];
-
-                    for button in buttons {
-                        let id = c.id(button);
-                        let hover = c.pointer_over(id);
-                        let (down, click) = (hover && mouse_held, hover && mouse_clicked);
-
-                        const button_col:       (u8, u8, u8, u8) = (0x24, 0x24, 0x24, 0xff);
-                        const button_hover_col: (u8, u8, u8, u8) = (0x30, 0x30, 0x30, 0xff);
-
-                        let colour = if hover { button_hover_col } else { button_col };
-
+                    let mut f = |button| {
+                        let id = Id::from_clay(c.id(button));
+                        let (clicked, colour) = ui.button(c, &mut clicked_id, id);
                         ui.item(c, Item {
-                            id: Id::from_clay(id.id),
+                            id, child_gap, align: Align::Center,
                             direction: Direction::TopToBottom,
                             width: Fit!(),
                             height: Fit!(),
-                            child_gap,
-                            align: Align::Center,
                             ..Default::default()
                         }, |c| {
 
@@ -521,7 +566,14 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                             let button_text_h = ui.scale16(16.0);
                             c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                         });
-                    }
+                        clicked
+                    };
+
+                    if f("Send")    { println!("Send!");    }
+                    if f("Receive") { println!("Receive!"); }
+                    if f("Faucet")  { println!("Faucet!");  }
+                    if f("Stake")   { println!("Stake!");   }
+                    if f("Unstake") { println!("Unstake!"); }
 
                 });
 
@@ -547,6 +599,8 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
         }, |c| {
         });
     });
+
+    ui.clicked_id = clicked_id;
 
 
     // Return the list of render commands of your layout
@@ -643,6 +697,8 @@ pub struct Context {
     pub scale:     f32,
     pub zoom:      f32,
     pub dpi_scale: f32,
+
+    pub clicked_id: Id,
 }
 
 impl Context {
@@ -654,10 +710,6 @@ impl Context {
     fn scale(&self, size: f32) -> f32 { (size * self.scale).floor() }
     fn scale32(&self, size: f32) -> u32 { self.scale(size) as u32 }
     fn scale16(&self, size: f32) -> u16 { self.scale(size) as u16 }
-
-    fn button(&self) -> bool {
-        false
-    }
 }
 
 bitset!(Flags<u64>,
