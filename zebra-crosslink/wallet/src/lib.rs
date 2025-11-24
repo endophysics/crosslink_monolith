@@ -146,8 +146,9 @@ pub fn wallet_main() {
             }).await {
                 Err(err) => println!("******* GET UTXOS ERROR: {:?}", err),
                 Ok(res) => {
-                    count = res.into_inner().address_utxos.len();
-                    for utxo in res.into_inner().address_utxos {
+                    let utxos = res.into_inner().address_utxos;
+                    count = utxos.len();
+                    for utxo in utxos {
                         sum += utxo.value_zat;
                     }
                 }
@@ -155,7 +156,7 @@ pub fn wallet_main() {
 
             let zec_full = sum / 100_000_000;
             let zec_part = sum % 100_000_000;
-            println!("miner {} has {} zats = {}.{} cTAZ unspent", miner_t_addr_str, sum, zec_full, zec_part);
+            println!("miner {} has {} UTXOs with {} zats = {}.{} cTAZ", miner_t_addr_str, count, sum, zec_full, zec_part);
 
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         });
