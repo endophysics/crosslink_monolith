@@ -34,6 +34,7 @@ use zcash_client_backend::{
             BlockRange,
             ChainSpec,
             Duration,
+            GetAddressUtxosArg,
             Empty,
             LightdInfo,
             compact_tx_streamer_client::CompactTxStreamerClient
@@ -130,17 +131,31 @@ pub fn wallet_main() {
 
     let mut seen_block_height = 0;
     loop {
+        let mut sum = 0;
+        let mut count = 0;
         the_future_is_now(async {
             let mut client = CompactTxStreamerClient::new(Channel::from_static("http://localhost:18233").connect().await.unwrap());
-            match client.get_latest_block(ChainSpec::default()).await {
-                Ok(latest_block) => {
-                    let latest_block = latest_block.into_inner();
-                    println!("******* LATEST BLOCK: {:?}", latest_block);
+            // let block_range = BlockRange{
+            //     start: Some(BlockId{ height: seen_block_height, hash: Vec::new() }),
+            //     end: Some(BlockId{ height: seen_block_height, hash: Vec::new() }),
+            // };
+            let range = match client.get_address_utxos(GetAddressUtxosArg {
+                addresses: vec![miner_t_addr_str.to_owned()],
+                start_height: seen_block_height,
+                max_entries: 0
+            }).await {
+                Err(err) => println!("******* GET UTXOS ERROR: {:?}", err),
+                Ok(res) => {
+                    count = res.into_inner().address_utxos.len();
+                    for utxo in res.into_inner().address_utxos {
+                        sum += utxo.value_zat;
+                    }
                 }
-                Err(err) => {
-                    // println!("******* LATEST BLOCK ERROR: {:?}", err);
-                }
-            }
+            };
+
+            let zec_full = sum / 100_000_000;
+            let zec_part = sum % 100_000_000;
+            println!("miner {} has {} zats = {}.{} cTAZ unspent", miner_t_addr_str, sum, zec_full, zec_part);
 
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         });
