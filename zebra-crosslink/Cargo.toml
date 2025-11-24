@@ -10,6 +10,7 @@ repository = "https://github.com/ZcashFoundation/zebra"
 
 [workspace]
 members = [
+        "wallet",
         "zebrad",
         "zebra-chain",
         "zebra-network",
@@ -31,6 +32,7 @@ resolver = "2"
 # `cargo release` settings
 
 [workspace.dependencies]
+wallet = { path = "./wallet" }
 zcash_address = { path = "../librustzcash/components/zcash_address" }
 zcash_encoding = { path = "../librustzcash/components/zcash_encoding" }
 zcash_history = { path = "../librustzcash/zcash_history" }
