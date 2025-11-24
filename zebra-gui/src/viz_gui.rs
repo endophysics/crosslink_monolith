@@ -161,7 +161,7 @@ pub fn viz_gui_init() -> VizState {
     *REQUESTS_TO_ZEBRA.lock().unwrap() = Some(zebra_receive);
     *RESPONSES_FROM_ZEBRA.lock().unwrap() = Some(zebra_send);
 
-    let viz_state = VizState {
+    let mut viz_state = VizState {
         camera_x: 0.0,
         camera_y: 0.0,
         zoom: 0.0,
@@ -385,26 +385,28 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
             let px = parent.x;
             let py = parent.y;
             let dx = px-x;
-            let dy = py-y - 2.0;
+            let dy = py-y;
+            let (dx, dy, l) = split_vector(dx, dy);
             draw_ctx.arrow(
-                origin_x + x*screen_unit,
-                origin_y + (y+1.5)*screen_unit,
-                origin_x + (x + dx)*screen_unit,
-                origin_y + (y + dy)*screen_unit,
-                screen_unit/3.0, 0x2222cc | (((on_screen_bc.alpha*255.0) as u32) << 24),
+                origin_x + (x + dx * 2.0) * screen_unit,
+                origin_y + (y + dy * 2.0) * screen_unit,
+                origin_x + (x + dx * (l - 2.0))*screen_unit,
+                origin_y + (y + dy * (l - 2.0) )*screen_unit,
+                screen_unit/4.0, 0x2222cc | (((on_screen_bc.alpha*255.0) as u32) << 24),
             );
         }
         if let Some(pointing_at_bft) = viz_state.on_screen_bfts.get(&on_screen_bc.block.points_at_bft_block) {
             let px = pointing_at_bft.x;
             let py = pointing_at_bft.y;
             let dx = px-x;
-            let dy = py-y - 2.0;
+            let dy = py-y;
+            let (dx, dy, l) = split_vector(dx, dy);
             draw_ctx.arrow(
-                origin_x + x*screen_unit,
-                origin_y + (y+1.5)*screen_unit,
-                origin_x + (x + dx)*screen_unit,
-                origin_y + (y + dy)*screen_unit,
-                screen_unit/3.0, 0xccff33 | (((on_screen_bc.alpha*255.0) as u32) << 24),
+                origin_x + (x + dx * 2.0) * screen_unit,
+                origin_y + (y + dy * 2.0) * screen_unit,
+                origin_x + (x + dx * (l - 2.0))*screen_unit,
+                origin_y + (y + dy * (l - 2.0) )*screen_unit,
+                screen_unit/4.0, 0xccff33 | (((on_screen_bc.alpha*255.0) as u32) << 24),
             );
         }
     }
@@ -427,32 +429,33 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
             let px = parent.x;
             let py = parent.y;
             let dx = px-x;
-            let dy = py-y - 2.0;
+            let dy = py-y;
+            let (dx, dy, l) = split_vector(dx, dy);
             draw_ctx.arrow(
-                origin_x + x*screen_unit,
-                origin_y + (y+1.5)*screen_unit,
-                origin_x + (x + dx)*screen_unit,
-                origin_y + (y + dy)*screen_unit,
-                screen_unit/3.0, 0x2222cc | (((on_screen_bft.alpha*255.0) as u32) << 24),
+                origin_x + (x + dx * 2.0) * screen_unit,
+                origin_y + (y + dy * 2.0) * screen_unit,
+                origin_x + (x + dx * (l - 2.0))*screen_unit,
+                origin_y + (y + dy * (l - 2.0) )*screen_unit,
+                screen_unit/4.0, 0x2222cc | (((on_screen_bft.alpha*255.0) as u32) << 24),
             );
         }
         if let Some(pointing_at_bc) = viz_state.on_screen_bcs.get(&on_screen_bft.block.points_at_bc_block) {
             let px = pointing_at_bc.x;
             let py = pointing_at_bc.y;
             let dx = px-x;
-            let dy = py-y - 2.0;
+            let dy = py-y;
+            let (dx, dy, l) = split_vector(dx, dy);
             draw_ctx.arrow(
-                origin_x + x*screen_unit,
-                origin_y + (y+1.5)*screen_unit,
-                origin_x + (x + dx)*screen_unit,
-                origin_y + (y + dy)*screen_unit,
-                screen_unit/3.0, 0xcc2233 | (((on_screen_bft.alpha*255.0) as u32) << 24),
+                origin_x + (x + dx * 2.0) * screen_unit,
+                origin_y + (y + dy * 2.0) * screen_unit,
+                origin_x + (x + dx * (l - 2.0))*screen_unit,
+                origin_y + (y + dy * (l - 2.0) )*screen_unit,
+                screen_unit/4.0, 0xcc2233 | (((on_screen_bft.alpha*255.0) as u32) << 24),
             );
         }
     }
 
     draw_ctx.text_line(origin_x+2.0*screen_unit, origin_y, screen_unit*3.0, &format!("Bc Height: {} BFT Height: {}", viz_state.bc_tip_height, viz_state.bft_tip_height), 0xff_ffffff);
-
 
     if viz_state.last_frame_hovered_hash != hovered_block {
         viz_state.last_frame_hovered_hash = hovered_block;
@@ -461,11 +464,11 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
     }
 }
 
-// fn split_vector(x: f32, y: f32) -> (f32, f32, f32) {
-//     let len = f32::sqrt(x*x + y*y);
-//     if len < 0.0000001 { return (0.0, 0.0, 0.0); }
-//     (x/len, y/len, len)
-// }
+fn split_vector(x: f32, y: f32) -> (f32, f32, f32) {
+    let len = f32::sqrt(x*x + y*y);
+    if len < 0.0000001 { return (0.0, 0.0, 0.0); }
+    (x/len, y/len, len)
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Hash32 {
