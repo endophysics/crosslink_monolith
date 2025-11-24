@@ -6,7 +6,7 @@ use tonic::client::GrpcService;
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use zcash_note_encryption::try_compact_note_decryption;
 use std::future::Future;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use rustls::CertificateError;
 use rustls::client::danger::ServerCertVerified;
@@ -93,7 +93,20 @@ async fn wait_for_zainod() {
     }
 }
 
-pub fn wallet_main() {
+pub struct WalletState {
+    pub balance: i64, // in zats
+}
+
+
+impl WalletState {
+    pub fn new() -> Self {
+        WalletState {
+            balance: 0,
+        }
+    }
+}
+
+pub fn wallet_main(wallet_state: Arc<Mutex<WalletState>>) {
     the_future_is_now(async {
         println!("waiting for zaino to be ready...");
         wait_for_zainod().await;
@@ -158,6 +171,7 @@ pub fn wallet_main() {
             let zec_part = sum % 100_000_000;
             println!("miner {} has {} UTXOs with {} zats = {}.{} cTAZ", miner_t_addr_str, count, sum, zec_full, zec_part);
 
+            wallet_state.lock().unwrap().balance = sum;
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         });
     }

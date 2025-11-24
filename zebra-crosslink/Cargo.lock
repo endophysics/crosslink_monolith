@@ -8210,6 +8210,7 @@ dependencies = [
  "softbuffer",
  "swash",
  "twox-hash",
+ "wallet",
  "winit",
 ]
 
@@ -10041,6 +10042,7 @@ dependencies = [
  "tracing-subscriber",
  "tracing-test",
  "vergen-git2",
+ "wallet",
  "zainod",
  "zcash_keys",
  "zebra-chain",

@@ -152,6 +152,7 @@ tx_v6 = ["zebra-chain/tx_v6", "zebra-state/tx_v6", "zebra-consensus/tx_v6"]
 comparison-interpreter = ["zebra-script/comparison-interpreter"]
 
 [dependencies]
+wallet = {workspace = true }
 zebra-chain = { path = "../zebra-chain", version = "2.0.0" }
 zebra-consensus = { path = "../zebra-consensus", version = "2.0.0" }
 zebra-network = { path = "../zebra-network", version = "1.1.0" }
