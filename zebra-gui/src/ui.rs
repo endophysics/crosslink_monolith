@@ -350,14 +350,6 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
     let mut c = clay.begin::<(), ()>();
 
-    let tab_id_wallet     = Id::id("Wallet");
-    let tab_id_finalizers = Id::id("Finalizers");
-    let tab_id_history    = Id::id("History");
-
-    if pane_tab_l == Id::default() {
-        pane_tab_l = tab_id_wallet;
-    }
-
     ui.item(&c, |c| Item {
         id: Id::id("Main"),
         padding, child_gap,
@@ -379,6 +371,10 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             ..Default::default()
         }, |c| {
 
+            let mut tab_id_wallet = Id::default();
+            let mut tab_id_finalizers = Id::default();
+            let mut tab_id_history = Id::default();
+
             ui.item(c, |c| Item {
                 id: Id::id("Tab Bar"),
                 child_gap,
@@ -388,20 +384,22 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 ..Default::default()
             }, |c| {
 
-                let mut tab = |label, id| {
+                let mut tab = |tab_id: &mut Id, label| {
                     let tab_text_h = ui.scale16(18.0);
 
                     let radius = (radius.0, radius.1, 0.0, 0.0);
 
+                    let id = Id::id(label);
+
                     let (clicked, _) = ui.button(c, &mut clicked_id, id);
-                    if clicked {
-                        pane_tab_l = id;
+                    if clicked || *tab_id == Id::default() {
+                        *tab_id = id;
                     }
 
                     ui.item(c, |c| Item {
                         id,
                         radius, padding,
-                        colour: if pane_tab_l == id { active_tab_col } else { inactive_tab_col },
+                        colour: if *tab_id == id { active_tab_col } else { inactive_tab_col },
                         width: Grow!(),
                         height: Grow!(),
                         align: Align::Center,
@@ -409,10 +407,12 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                     }, |c| {
                         c.text(label, clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                     });
+
+                    id
                 };
-                tab("Wallet",     tab_id_wallet);
-                tab("Finalizers", tab_id_finalizers);
-                tab("History",    tab_id_history);
+                tab_id_wallet     = tab(&mut pane_tab_l, "Wallet");
+                tab_id_finalizers = tab(&mut pane_tab_l, "Finalizers");
+                tab_id_history    = tab(&mut pane_tab_l, "History");
 
             });
 
@@ -534,6 +534,10 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             ..Default::default()
         }, |c| {
 
+            let mut tab_id_faucet = Id::default();
+            let mut tab_id_roster = Id::default();
+            let mut tab_id_settings = Id::default();
+
             ui.item(c, |c| Item {
                 id: Id::id("Tab Bar"),
                 child_gap,
@@ -543,7 +547,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 ..Default::default()
             }, |c| {
 
-                let mut tab = |label| {
+                let mut tab = |tab_id: &mut Id, label| {
                     let tab_text_h = ui.scale16(18.0);
 
                     let radius = (radius.0, radius.1, 0.0, 0.0);
@@ -551,14 +555,14 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                     let id = Id::id(label);
 
                     let (clicked, _) = ui.button(c, &mut clicked_id, id);
-                    if clicked || pane_tab_r == Id::default() {
-                        pane_tab_r = id;
+                    if clicked || *tab_id == Id::default() {
+                        *tab_id = id;
                     }
 
                     ui.item(c, |c| Item {
                         id,
                         radius, padding,
-                        colour: if pane_tab_r == id { active_tab_col } else { inactive_tab_col },
+                        colour: if *tab_id == id { active_tab_col } else { inactive_tab_col },
                         width: Grow!(),
                         height: Grow!(),
                         align: Align::Center,
@@ -566,11 +570,13 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                     }, |c| {
                         c.text(label, clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                     });
+
+                    id
                 };
 
-                tab("Faucet");
-                tab("Roster");
-                tab("Settings");
+                tab_id_faucet   = tab(&mut pane_tab_r, "Faucet");
+                tab_id_roster   = tab(&mut pane_tab_r, "Roster");
+                tab_id_settings = tab(&mut pane_tab_r, "Settings");
             });
 
             // Main contents
