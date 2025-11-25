@@ -4,6 +4,9 @@
 mod ui;
 use ui::*;
 
+use std::sync::{Arc, Mutex};
+use wallet;
+
 mod viz_gui;
 pub use viz_gui::*;
 
@@ -446,8 +449,21 @@ impl DrawCtx {
         }
     }
 
-    // pub fn set_scissor(&self, x1: isize, y1: isize, x2: isize, y2: isize) {
-    // }
+    pub fn set_scissor(&self, x1: isize, y1: isize, x2: isize, y2: isize) {
+        unsafe {
+            let put = self.draw_command_buffer.add(*self.draw_command_count);
+            *self.draw_command_count += 1;
+            *put = DrawCommand::Scissor {
+                x1: x1.max(0),
+                x2: x2.min(self.window_width),
+                y1: y1.max(0),
+                y2: y2.min(self.window_height),
+            };
+        }
+    }
+    pub fn clear_scissor(&self) {
+        self.set_scissor(0, 0, self.window_width, self.window_height);
+    }
 
     pub fn rectangle(&self, x1: f32, y1: f32, x2: f32, y2: f32, color: u32) {
         unsafe {
@@ -719,6 +735,12 @@ enum DrawCommand {
         radius_br: isize,
         color: u32,
     },
+    Scissor {
+        x1: isize,
+        y1: isize,
+        x2: isize,
+        y2: isize,
+    },
     PixelLineXDef { // will draw one pixel per x
         x1: f32, // x1 must be less than x2
         y1: f32,
@@ -825,7 +847,7 @@ pub static SOUND_UI_HOVER: &[u8] = include_bytes!("../assets/ui_hover.ogg");
 const DRAW_CALL_MAX: usize = 16384;
 const GLYPH_RUN_MAX: usize = 16384;
 
-pub fn main_thread_run_program() {
+pub fn main_thread_run_program(wallet_state: Arc<Mutex<wallet::WalletState>>) {
 
     let mut viz_state = viz_gui_init();
 
@@ -1218,7 +1240,7 @@ pub fn main_thread_run_program() {
                                             viz_gui_draw_the_stuff_for_the_things(&mut viz_state, &draw_ctx, dt as f32, &input_ctx);
 
                                             {
-                                                let should_quit = demo_of_rendering_stuff_with_context_that_allocates_in_the_background(&mut gui_ctx, &mut some_data_to_keep_around);
+                                                let should_quit = demo_of_rendering_stuff_with_context_that_allocates_in_the_background(&mut gui_ctx, &mut some_data_to_keep_around, wallet_state.clone());
                                                 if should_quit {
                                                     elwt.exit();
                                                 }
@@ -1271,6 +1293,11 @@ pub fn main_thread_run_program() {
 
                                                         let debug_pixel = (*(*ctx.draw_ctx).debug_pixel_inspector).unwrap_or((usize::MAX, usize::MAX));
 
+                                                        let mut scissor_x1: isize = 0;
+                                                        let mut scissor_y1: isize = 0;
+                                                        let mut scissor_x2: isize = ctx.window_width  as isize;
+                                                        let mut scissor_y2: isize = ctx.window_height as isize;
+
                                                         let mut got_hash = 0u64;
                                                         for should_draw in 0..2 {
                                                             let should_draw = should_draw == 1;
@@ -1300,6 +1327,18 @@ pub fn main_thread_run_program() {
                                                                             }
                                                                             row_pixels = row_pixels.byte_add(4 << pixel_row_shift);
                                                                         }
+                                                                    }
+                                                                    DrawCommand::Scissor { x1, y1, x2, y2 } => {
+                                                                        hasher.write_u64(0x897235923645643);
+                                                                        hasher.write_isize(x1);
+                                                                        hasher.write_isize(x2);
+                                                                        hasher.write_isize(y1);
+                                                                        hasher.write_isize(y2);
+                                                                        if should_draw == false { continue; }
+                                                                        scissor_x1 = x1;
+                                                                        scissor_y1 = y1;
+                                                                        scissor_x2 = x2;
+                                                                        scissor_y2 = y2;
                                                                     }
                                                                     DrawCommand::ColoredRectangle {
                                                                         x: ofx,

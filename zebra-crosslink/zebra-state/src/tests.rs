@@ -15,9 +15,7 @@ pub mod setup;
 /// Helper trait for constructing "valid" looking chains of blocks
 pub trait FakeChainHelper {
     fn make_fake_child(&self) -> Arc<Block>;
-
     fn set_work(self, work: u128) -> Arc<Block>;
-
     fn set_block_commitment(self, commitment: [u8; 32]) -> Arc<Block>;
 }
 

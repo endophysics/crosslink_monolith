@@ -14,6 +14,7 @@ swash = "0.2.6"
 rodio = "0.21.1"
 arboard = "3.6.1"
 clay-layout = "0.4"
+wallet = { path = "../zebra-crosslink/wallet" }
 
 [profile.release]
 debug = 2   # full debug info (0 = none, 1 = line tables only, 2 = full)

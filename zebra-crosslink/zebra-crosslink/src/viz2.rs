@@ -4,7 +4,7 @@ use std::cmp::{max, min};
 
 use crate::*;
 
-pub fn viz_main(tokio_root_thread_handle: Option<std::thread::JoinHandle<()>>) {
+pub fn viz_main(tokio_root_thread_handle: Option<std::thread::JoinHandle<()>>, wallet_state: Arc<Mutex<wallet::WalletState>>) {
     // loop {
     //     if let Some(ref thread_handle) = tokio_root_thread_handle {
     //         if thread_handle.is_finished() {
@@ -12,7 +12,7 @@ pub fn viz_main(tokio_root_thread_handle: Option<std::thread::JoinHandle<()>>) {
     //         }
     //     }
     // }
-    visualizer_zcash::main_thread_run_program();
+    visualizer_zcash::main_thread_run_program(wallet_state);
 }
 
 

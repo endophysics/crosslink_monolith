@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 #![allow(dead_code)]
 #![allow(unused_parens)]
 #![allow(clippy::never_loop)]
@@ -3081,4 +3082,3 @@ mod tests {
         }
     }
 }
-
