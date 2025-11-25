@@ -158,7 +158,7 @@ fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 #[derive(Debug, Default, Copy, Clone)] enum AlignY    { #[default] Top, Center, Bottom }
 #[derive(Debug, Default, Copy, Clone)] struct Align   { x: AlignX, y: AlignY }
 #[derive(Debug,          Copy, Clone)] enum Sizing    { Fit(f32, f32), Grow(f32, f32), Fixed(f32), Percent(f32) }
-#[derive(Debug, Default, Copy, Clone)] struct Id      { base_id: u32, id: u32, offset: u32, chars: *const u8, len: usize }
+#[derive(Debug, Default, Copy, Clone, PartialEq)] struct Id { base_id: u32, id: u32, offset: u32, chars: *const u8, len: usize }
 impl Default for Sizing { fn default() -> Self { Self::Fit(0.0, f32::MAX) } }
 impl Align {
     const TopLeft:     Self = Self { y: AlignY::Top,    x: AlignX::Left };
@@ -229,6 +229,15 @@ impl Id {
                 }
             }
         }
+    }
+    fn id(label: &str) -> Self {
+        Id::from_clay(
+            clay::id::Id {
+                id: unsafe {
+                    clay::Clay__HashString(label.into(), 0, clay::Clay__GetParentElementId())
+                }
+            }
+        )
     }
 }
 
@@ -363,9 +372,6 @@ trait         Dup4: Copy { fn dup4(self) -> (Self, Self, Self, Self); }
 impl<T: Copy> Dup4 for T { fn dup4(self) -> (Self, Self, Self, Self) { (self, self, self, self) } }
 
 
-#[derive(Debug, Default, Copy, Clone, PartialEq)] enum PaneTabL { #[default] Wallet, Finalizers, History }
-#[derive(Debug, Default, Copy, Clone, PartialEq)] enum PaneTabR { #[default] Faucet, Roster, Settings }
-
 fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data: &mut SomeDataToKeepAround, is_rendering: bool) -> bool {
     let mut result = false;
     let mut balance_str = String::new();
@@ -431,10 +437,20 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
     let mut clicked_id = ui.clicked_id;
     let mut pane_tab_l = ui.pane_tab_l; // @Todo: how to not have to do this in rust?
+    let mut pane_tab_r = ui.pane_tab_r; // @Todo: how to not have to do this in rust?
 
     let mut c = clay.begin::<(), ()>();
 
+    let tab_id_wallet     = Id::from_clay(c.id("Wallet"));
+    let tab_id_finalizers = Id::from_clay(c.id("Finalizers"));
+    let tab_id_history    = Id::from_clay(c.id("History"));
+
+    if pane_tab_l == Id::default() {
+        pane_tab_l = tab_id_wallet;
+    }
+
     ui.item(&mut c, Item {
+        id: Id::id("Main"),
         padding, child_gap,
         width: Grow!(),
         height: Grow!(),
@@ -446,76 +462,54 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             Sizing::Percent(pct * ui.scale)
         };
 
-        // left pane
         ui.item(c, Item {
+            id: Id::id("Main"),
             direction: Direction::TopToBottom,
             width: pane_pct,
             height: Grow!(),
             ..Default::default()
         }, |c| {
 
-            // tab bar
             ui.item(c, Item {
+                id: Id::id("Main"),
                 child_gap,
                 width: Percent!(1.0),
                 height: Fit!(),
                 align: Align::Center,
                 ..Default::default()
             }, |c| {
-                let mut tab = |label, pane_tab| {
+
+                let mut tab = |label, id| {
+                    let tab_text_h = ui.scale16(18.0);
+
                     let radius = (radius.0, radius.1, 0.0, 0.0);
 
-                    let id = Id::from_clay(c.id(label));
                     let (clicked, _) = ui.button(c, &mut clicked_id, id);
                     if clicked {
-                        pane_tab_l = pane_tab;
+                        pane_tab_l = id;
                     }
 
                     ui.item(c, Item {
                         id,
                         radius, padding,
-                        colour: if ui.pane_tab_l == pane_tab { active_tab_col } else { inactive_tab_col },
+                        colour: if pane_tab_l == id { active_tab_col } else { inactive_tab_col },
                         width: Grow!(),
                         height: Grow!(),
                         align: Align::Center,
                         ..Default::default()
                     }, |c| {
-                        let tab_text_h = ui.scale16(18.0);
                         c.text(label, clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
                     });
                 };
+                tab("Wallet",     tab_id_wallet);
+                tab("Finalizers", tab_id_finalizers);
+                tab("History",    tab_id_history);
 
-                tab("Wallet", PaneTabL::Wallet);
-                tab("Finalizers", PaneTabL::Finalizers);
-                tab("History", PaneTabL::History);
-
-                // // Finalizers tab
-                // ui.item(c, Item {
-                //     radius, padding,
-                //     colour: inactive_tab_col,
-                //     width: Grow!(),
-                //     height: Grow!(),
-                //     align: Align::Center,
-                //     ..Default::default()
-                // }, |c| {
-                //     c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                // });
-
-                // // History tab
-                // ui.item(c, Item {
-                //     radius, padding,
-                //     colour: inactive_tab_col,
-                //     width: Grow!(),
-                //     height: Grow!(),
-                //     align: Align::Center,
-                //     ..Default::default()
-                // }, |c| {
-                //     c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                // });
             });
 
             // Main contents
             ui.item(c, Item {
+                id: Id::id("Main Contents"),
                 colour: (0x12, 0x12, 0x12, 0xff),
                 radius: (0.0, 0.0, radius.2, radius.3),
                 direction: Direction::TopToBottom,
@@ -523,9 +517,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 height: Grow!(),
                 ..Default::default()
             }, |c| {
-
-                match ui.pane_tab_l {
-                PaneTabL::Wallet => {
+                if pane_tab_l == tab_id_wallet {
                     let balance_text_h = ui.scale16(48.0);
 
                     // spacer
@@ -551,6 +543,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
                     // buttons container
                     ui.item(c, Item {
+                        id: Id::id("Buttons Container"),
                         padding, child_gap, align: Align::Center,
                         width: Percent!(1.0),
                         height: Fit!(),
@@ -558,7 +551,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                     }, |c| {
 
                         let mut f = |button| {
-                            let id = Id::from_clay(c.id(button));
+                            let id = Id::id(button);
                             let (clicked, colour) = ui.button(c, &mut clicked_id, id);
                             ui.item(c, Item {
                                 id, child_gap, align: Align::Center,
@@ -595,17 +588,14 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
                     });
 
-                }
-                PaneTabL::Finalizers => {
-                }
-                PaneTabL::History => {
-                }
+                } else if pane_tab_l == tab_id_finalizers {
+                } else if pane_tab_l == tab_id_history {
                 }
             });
         });
 
-        // central gap
         ui.item(c, Item {
+            id: Id::id("Central Gap"),
             radius, padding, child_gap,
             width: Grow!(),
             height: Grow!(),
@@ -613,14 +603,57 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
         }, |c| {
         });
 
-        // right pane
         ui.item(c, Item {
+            id: Id::id("Right Pane"),
             radius, padding, child_gap,
             colour: pane_col,
             width: pane_pct,
             height: Grow!(),
             ..Default::default()
         }, |c| {
+
+            ui.item(c, Item {
+                id: Id::id("Main"),
+                child_gap,
+                width: Percent!(1.0),
+                height: Fit!(),
+                align: Align::Center,
+                ..Default::default()
+            }, |c| {
+            
+                let mut tab = |label| {
+                    let tab_text_h = ui.scale16(18.0);
+
+                    let radius = (radius.0, radius.1, 0.0, 0.0);
+
+                    let id = Id::id(label);
+
+                    let (clicked, _) = ui.button(c, &mut clicked_id, id);
+                    if clicked || pane_tab_r == Id::default() {
+                        pane_tab_r = id;
+                    }
+
+                    use std::io::Write;
+                    println!("Making item! {}", label);
+                    std::io::stdout().flush().expect("");
+                    ui.item(c, Item {
+                        id,
+                        radius, padding,
+                        colour: if pane_tab_r == id { active_tab_col } else { inactive_tab_col },
+                        width: Grow!(),
+                        height: Grow!(),
+                        align: Align::Center,
+                        ..Default::default()
+                    }, |c| {
+                        c.text(label, clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                    });
+                };
+
+                tab("Faucet");
+                tab("Roster");
+                tab("Settings");
+            });
+
         });
     });
 
@@ -725,8 +758,8 @@ pub struct Context {
 
     pub clicked_id: Id,
 
-    pub pane_tab_l: PaneTabL,
-    pub pane_tab_r: PaneTabR,
+    pub pane_tab_l: Id,
+    pub pane_tab_r: Id,
 }
 
 impl Context {
