@@ -438,6 +438,7 @@ pub mod compact_tx_streamer_client {
             tonic::Response<tonic::codec::Streaming<crate::proto::compact_formats::CompactBlock>>,
             tonic::Status,
         > {
+            println!("ZAINO: get_block_range");
             self.inner.ready().await.map_err(|e| {
                 tonic::Status::new(
                     tonic::Code::Unknown,

@@ -1,5 +1,6 @@
 #![allow(warnings)]
 
+use std::thread::current;
 use std::{hash::Hash};
 use winit::{event::MouseButton, keyboard::KeyCode};
 use clay_layout as clay;
@@ -255,7 +256,7 @@ impl Id {
 //         clay::Clay__OpenElement();
 //         let decl = clay::Clay_ElementDeclaration {
 //             backgroundColor: (0.0, 0.0, 0.0, 0.0).into(),
-// 
+//
 //         };
 //         clay::Clay__ConfigureOpenElement();
 //     }
@@ -517,9 +518,9 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 height: Grow!(),
                 ..Default::default()
             }, |c| {
-                if pane_tab_l == tab_id_wallet {
-                    let balance_text_h = ui.scale16(48.0);
+                let balance_text_h = ui.scale16(48.0);
 
+                if pane_tab_l == tab_id_wallet {
                     // spacer
                     ui.item(c, Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
 
@@ -590,6 +591,19 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
                 } else if pane_tab_l == tab_id_finalizers {
                 } else if pane_tab_l == tab_id_history {
+                    ui.item(c, Item {
+                        width: Percent!(1.0),
+                        height: Fit!(),
+                        padding,
+                        align: Align::Center,
+                        ..Default::default()
+                    }, |c| {
+                        let balance = wallet_state.lock().unwrap().balance;
+                        let zec_full = balance / 100_000_000;
+                        let zec_part = balance % 100_000_000;
+                        balance_str = format!("{}.{} cTAZ", zec_full, &format!("{:03}", zec_part)[..3]);
+                        c.text(&balance_str, clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                    });
                 }
             });
         });

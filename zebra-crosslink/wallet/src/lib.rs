@@ -115,8 +115,13 @@ async fn wait_for_zainod() {
     }
 }
 
+pub struct WalletTx {
+
+}
+
 pub struct WalletState {
     pub balance: i64, // in zats
+    pub txs: Vec<WalletTx>,
 }
 
 
@@ -124,6 +129,7 @@ impl WalletState {
     pub fn new() -> Self {
         WalletState {
             balance: 0,
+            txs: Vec::new(),
         }
     }
 }
@@ -192,63 +198,74 @@ pub fn wallet_main(wallet_state: Arc<Mutex<WalletState>>) {
     let user_t_addr_str = user_t_addr.encode(network);
     println!("User t-address: {}", user_t_addr_str);
 
-    let mut seen_block_height = 0;
+    let mut txs_seen_block_height = 0;
     let mut already_sent = false;
     loop {
-        let mut sum = 0;
-        let mut count = 0;
         the_future_is_now(async {
             let mut client = CompactTxStreamerClient::new(Channel::from_static("http://localhost:18233").connect().await.unwrap());
             let latest_block = client.get_latest_block(ChainSpec{}).await.unwrap().into_inner();
-            // let block_range = BlockRange{
-            //     start: Some(BlockId{ height: seen_block_height, hash: Vec::new() }),
-            //     end: Some(BlockId{ height: seen_block_height, hash: Vec::new() }),
-            // };
-            let range = match client.get_address_utxos(GetAddressUtxosArg {
+            let miner_utxos = match client.get_address_utxos(GetAddressUtxosArg {
                 addresses: vec![miner_t_addr_str.to_owned()],
-                start_height: seen_block_height,
+                start_height: 0,
                 max_entries: 0
             }).await {
                 Err(err) => {
                     println!("******* GET UTXOS ERROR: {:?}", err);
                     vec![]
                 },
-                Ok(res) => {
-                    res.into_inner().address_utxos
-                }
+                Ok(res) => res.into_inner().address_utxos,
             };
 
-            match client.get_address_utxos(GetAddressUtxosArg {
+            let user_utxos = match client.get_address_utxos(GetAddressUtxosArg {
                 addresses: vec![user_t_addr_str.to_owned()],
-                start_height: seen_block_height,
+                start_height: 0,
                 max_entries: 0
             }).await {
                 Err(err) => {
                     println!("******* GET UTXOS ERROR: {:?}", err);
                     vec![]
                 },
+                Ok(res) => res.into_inner().address_utxos,
+            };
+
+            let block_range = BlockRange{
+                start: Some(BlockId{ height: txs_seen_block_height, hash: Vec::new() }),
+                end: Some(BlockId{ height: u32::MAX as u64, hash: Vec::new() }),
+            };
+            let new_blocks = match client.get_block_range(block_range).await {
+                Err(err) => {
+                    println!("******* GET BLOCK RANGE ERROR: {:?}", err);
+                    None
+                },
                 Ok(res) => {
-                    let utxos = res.into_inner().address_utxos;
-                    count = utxos.len();
-                    for utxo in &utxos {
-                        sum += utxo.value_zat;
+                    let mut grpc_stream = res.into_inner();
+                    let mut blocks = Vec::new();
+                    loop {
+                        if let Ok(msg) = grpc_stream.message().await {
+                            if let Some(block) = msg {
+                                blocks.push(block);
+                            } else {
+                                break Some(blocks);
+                            }
+                        } else {
+                            break None;
+                        }
                     }
-                    utxos
                 }
             };
 
-            if !already_sent && range.len() != 0 && range[0].height + (MIN_TRANSPARENT_COINBASE_MATURITY as u64) < latest_block.height {
+            if !already_sent && miner_utxos.len() != 0 && miner_utxos[0].height + (MIN_TRANSPARENT_COINBASE_MATURITY as u64) < latest_block.height {
                 let mut signing_set = TransparentSigningSet::new();
                 signing_set.add_key(miner_privkey);
 
-                let prover = LocalTxProver::with_default_location().unwrap();
+                let prover = LocalTxProver::bundled();
                 let extsk: &[ExtendedSpendingKey] = &[];
                 let sak: &[SpendAuthorizingKey] = &[];
 
-                let zats = (Zatoshis::from_nonnegative_i64(range[0].value_zat).unwrap() - MINIMUM_FEE).unwrap();
-                let script = zcash_transparent::address::Script(range[0].script.clone());
+                let zats = (Zatoshis::from_nonnegative_i64(miner_utxos[0].value_zat).unwrap() - MINIMUM_FEE).unwrap();
+                let script = zcash_transparent::address::Script(miner_utxos[0].script.clone());
 
-                let outpoint = OutPoint::new(range[0].txid[..32].try_into().unwrap(), range[0].index as u32);
+                let outpoint = OutPoint::new(miner_utxos[0].txid[..32].try_into().unwrap(), miner_utxos[0].index as u32);
 
                 let mut txb = TxBuilder::new(
                     network,
@@ -284,6 +301,14 @@ pub fn wallet_main(wallet_state: Arc<Mutex<WalletState>>) {
                 already_sent = true;
             }
 
+            if let Some(new_blocks) = new_blocks {
+                for block in &new_blocks {
+                    // txs_seen_block_height = txs_seen_block_height.max(block.height);
+                    for tx in &block.vtx {
+                        println!("tx: {tx:?}");
+                    }
+                }
+            }
 
             // let latest = client.get_latest_block(ChainSpec{}).await.unwrap().into_inner();
             // let consensus_branch_id = BranchId::for_height(network, BlockHeight::from_u32(latest.height as u32));
@@ -313,11 +338,16 @@ pub fn wallet_main(wallet_state: Arc<Mutex<WalletState>>) {
             // let mut tx_bytes = vec![];
             // tx_bytes.write(&mut tx_bytes).unwrap();
 
-            let zec_full = sum / 100_000_000;
-            let zec_part = sum % 100_000_000;
-            println!("miner {} has {} UTXOs with {} zats = {}.{} cTAZ", miner_t_addr_str, count, sum, zec_full, zec_part);
+            let mut user_sum = 0;
+            for utxo in &user_utxos {
+                user_sum += utxo.value_zat;
+            }
 
-            wallet_state.lock().unwrap().balance = sum;
+            let zec_full = user_sum / 100_000_000;
+            let zec_part = user_sum % 100_000_000;
+            println!("user {} has {} UTXOs with {} zats = {}.{} cTAZ", user_t_addr_str, user_utxos.len(), user_sum, zec_full, zec_part);
+
+            wallet_state.lock().unwrap().balance = user_sum;
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         });
     }
