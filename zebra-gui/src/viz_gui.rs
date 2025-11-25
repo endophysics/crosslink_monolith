@@ -62,12 +62,14 @@ struct OnScreenBc {
     roundness: f32,
     darkness: f32,
     alpha: f32,
+    bft_arrow_alpha: f32,
 
     t_x: f32,
     t_y: f32,
     t_roundness: f32,
     t_darkness: f32,
     t_alpha: f32,
+    t_bft_arrow_alpha: f32,
     block: BcBlock,
 }
 impl Default for OnScreenBc {
@@ -78,11 +80,13 @@ impl Default for OnScreenBc {
             roundness: 1.0,
             darkness: 0.0,
             alpha: 1.0,
+            bft_arrow_alpha: 1.0,
             t_x: 0.0,
             t_y: 0.0,
             t_roundness: 1.0,
             t_darkness: 0.0,
             t_alpha: 1.0,
+            t_bft_arrow_alpha: 1.0,
             block: BcBlock::default(),
         }
     }
@@ -180,6 +184,14 @@ pub fn viz_gui_init() -> VizState {
     // viz_state.on_screen_bcs.insert(block.block.this_hash, block);
     // let block = OnScreenBc { block: BcBlock { this_hash: Hash32::from_u64(3), parent_hash: Hash32::from_u64(2), this_height: 2, is_best_chain: true, points_at_bft_block: Hash32::from_u64(5), }, ..Default::default() };
     // viz_state.on_screen_bcs.insert(block.block.this_hash, block);
+    // let block = OnScreenBc { block: BcBlock { this_hash: Hash32::from_u64(8), parent_hash: Hash32::from_u64(1), this_height: 1, is_best_chain: false, points_at_bft_block: Hash32::from_u64(5), }, ..Default::default() };
+    // viz_state.on_screen_bcs.insert(block.block.this_hash, block);
+    // let block = OnScreenBc { block: BcBlock { this_hash: Hash32::from_u64(9), parent_hash: Hash32::from_u64(2), this_height: 2, is_best_chain: false, points_at_bft_block: Hash32::from_u64(5), }, ..Default::default() };
+    // viz_state.on_screen_bcs.insert(block.block.this_hash, block);
+    // let block = OnScreenBc { block: BcBlock { this_hash: Hash32::from_u64(10), parent_hash: Hash32::from_u64(8), this_height: 2, is_best_chain: false, points_at_bft_block: Hash32::from_u64(5), }, ..Default::default() };
+    // viz_state.on_screen_bcs.insert(block.block.this_hash, block);
+    // let block = OnScreenBc { block: BcBlock { this_hash: Hash32::from_u64(11), parent_hash: Hash32::from_u64(10), this_height: 3, is_best_chain: false, points_at_bft_block: Hash32::from_u64(5), }, ..Default::default() };
+    // viz_state.on_screen_bcs.insert(block.block.this_hash, block);
 
     // let block = OnScreenBft { block: BftBlock { this_hash: Hash32::from_u64(5), parent_hash: Hash32::from_u64(0), this_height: 0, points_at_bc_block: Hash32::from_u64(1), }, ..Default::default() };
     // viz_state.on_screen_bfts.insert(block.block.this_hash, block);
@@ -198,6 +210,11 @@ pub fn viz_gui_anything_happened_at_all(viz_state: &mut VizState) -> bool {
         viz_state.bc_tip_height = message.bc_tip_height;
         anything_happened |= viz_state.bft_tip_height != message.bft_tip_height;
         viz_state.bft_tip_height = message.bft_tip_height;
+
+        // @hack
+        for bc in viz_state.on_screen_bcs.values_mut() {
+            bc.block.is_best_chain = false;
+        }
 
         for bc in &message.bc_blocks {
             if let Some(r) = viz_state.on_screen_bcs.get_mut(&bc.this_hash) {
@@ -312,9 +329,13 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
                 on_screen_bc.y = 0.0;
                 on_screen_bc.alpha = 0.0;
             }
+
+            on_screen_bc.t_bft_arrow_alpha = 1.0;
         } else {
             on_screen_bc.t_roundness = 1.0;
             on_screen_bc.t_darkness = 0.0;
+
+            on_screen_bc.t_bft_arrow_alpha = if on_screen_bc.block.is_best_chain { 1.0 } else { 0.1 };
         }
         on_screen_bc.t_x = -5.0;
         on_screen_bc.t_y = if let Some(parent_bc) = viz_state.on_screen_bcs.get(&on_screen_bc.block.parent_hash) {
@@ -348,6 +369,53 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
         }
     }
 
+    let hash_text_line_w = draw_ctx.measure_mono_text_line(screen_unit, &format!("{}", Hash32::from_u64(0))) / screen_unit;
+
+    {
+        let mut working_map = HashMap::<Hash32, u16>::new();
+        let mut width_map = HashMap::<u64, u16>::new();
+        let mut off_chain: Vec<(u64, Hash32)> = Vec::new();
+        for bc in viz_state.on_screen_bcs.values() {
+            if bc.block.is_best_chain == false {
+                off_chain.push((bc.block.this_height, bc.block.this_hash));
+            }
+        }
+        off_chain.sort_by_key(|x| u64::MAX - x.0);
+
+        fn recurse_layout_children_then_self(this_index: usize, off_chain: &Vec<(u64, Hash32)>, working_map: &mut HashMap<Hash32, u16>, width_map: &mut HashMap<u64, u16>, on_screen_bcs: &HashMap<Hash32, OnScreenBc>, min_width: u16) {
+            let (this_height, this_hash) = off_chain[this_index];
+            let here_width = *width_map.get(&this_height).unwrap_or(&0).max(&min_width);
+
+            let mut child_scanner = this_index;
+            while child_scanner > 0 {
+                child_scanner -= 1;
+                let (other_height, other_hash) = off_chain[child_scanner];
+                if other_height > this_height + 1 { break; }
+                let block = on_screen_bcs.get(&other_hash).unwrap().block;
+
+                if block.parent_hash == this_hash {
+                    recurse_layout_children_then_self(child_scanner, off_chain, working_map, width_map, on_screen_bcs, here_width);
+                }
+            }
+
+            working_map.insert(this_hash, here_width);
+            width_map.insert(this_height, here_width + 1);
+        }
+
+        for (index, (height, hash)) in off_chain.iter().enumerate() {
+            let parent_hash = viz_state.on_screen_bcs.get(&hash).unwrap().block.parent_hash;
+            if let Some(parent) = viz_state.on_screen_bcs.get_mut(&parent_hash) {
+                if parent.block.is_best_chain {
+                    recurse_layout_children_then_self(index, &off_chain, &mut working_map, &mut width_map, &viz_state.on_screen_bcs, 0);
+                }
+            }
+        }
+
+        for (hash, x_pos) in &working_map {
+            viz_state.on_screen_bcs.get_mut(hash).unwrap().t_x = -5.0 - hash_text_line_w - 5.0*(1.0 + *x_pos as f32);
+        }
+    }
+
 
     // animate to targets
     for on_screen_bc in viz_state.on_screen_bcs.values_mut() {
@@ -356,6 +424,7 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
         on_screen_bc.roundness = e_lerp(on_screen_bc.roundness, on_screen_bc.t_roundness, dt);
         on_screen_bc.darkness = e_lerp(on_screen_bc.darkness, on_screen_bc.t_darkness, dt);
         on_screen_bc.alpha = e_lerp(on_screen_bc.alpha, on_screen_bc.t_alpha, dt);
+        on_screen_bc.bft_arrow_alpha = e_lerp(on_screen_bc.bft_arrow_alpha, on_screen_bc.t_bft_arrow_alpha, dt);
     }
     for on_screen_bft in viz_state.on_screen_bfts.values_mut() {
         on_screen_bft.x = e_lerp(on_screen_bft.x, on_screen_bft.t_x, dt);
@@ -373,13 +442,20 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
         let color = (((on_screen_bc.alpha*255.0) as u32) << 24) | blend_u32(0x000000, COLOR_BC, ((1.0 - on_screen_bc.darkness) * 255.0) as u32);
         draw_ctx.circle_square(origin_x + (x*screen_unit), origin_y + (y*screen_unit), screen_unit, screen_unit*on_screen_bc.roundness, color);
 
-        // hash
-        let text_line = format!("{}", on_screen_bc.block.this_hash);
-        let text_line_w = draw_ctx.measure_mono_text_line(screen_unit, &text_line);
-        draw_ctx.mono_text_line(origin_x + (x - 1.5)*screen_unit - text_line_w, (origin_y + (y - 0.5)*screen_unit) as f32, screen_unit, &text_line, color);
+        if on_screen_bc.block.is_best_chain {
+            // hash
+            let text_line = format!("{}", on_screen_bc.block.this_hash);
+            draw_ctx.mono_text_line(origin_x + (x - 1.5 - hash_text_line_w)*screen_unit, (origin_y + (y - 0.5)*screen_unit) as f32, screen_unit, &text_line, color);
 
-        // height
-        draw_ctx.mono_text_line(origin_x + (x + 1.5)*screen_unit, (origin_y + (y - 0.5)*screen_unit) as f32, screen_unit, &format!("{}", on_screen_bc.block.this_height), color);
+            // height
+            draw_ctx.mono_text_line(origin_x + (x + 1.5)*screen_unit, (origin_y + (y - 0.5)*screen_unit) as f32, screen_unit, &format!("{}", on_screen_bc.block.this_height), color);
+        } else {
+            // hash
+            let text_line = format!("{}", on_screen_bc.block.this_hash);
+            let text_line = format!("..{}", &text_line[text_line.len()-2..]);
+            let w = draw_ctx.measure_mono_text_line(screen_unit, &text_line) / screen_unit;
+            draw_ctx.mono_text_line(origin_x + (x - 1.5 - w)*screen_unit, (origin_y + (y - 0.5)*screen_unit) as f32, screen_unit, &text_line, color);
+        }
 
         if let Some(parent) = viz_state.on_screen_bcs.get(&on_screen_bc.block.parent_hash) {
             let px = parent.x;
@@ -406,7 +482,7 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
                 origin_y + (y + dy * 2.0) * screen_unit,
                 origin_x + (x + dx * (l - 2.0))*screen_unit,
                 origin_y + (y + dy * (l - 2.0) )*screen_unit,
-                screen_unit/4.0, 0xccff33 | (((on_screen_bc.alpha*255.0) as u32) << 24),
+                screen_unit/4.0, 0xccff33 | (((on_screen_bc.alpha*on_screen_bc.bft_arrow_alpha*255.0) as u32) << 24),
             );
         }
     }
