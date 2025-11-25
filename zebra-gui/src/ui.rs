@@ -159,7 +159,7 @@ fn dbg_ui(ui: &mut Context, _data: &mut SomeDataToKeepAround, is_rendering: bool
 #[derive(Debug, Default, Copy, Clone)] enum AlignY    { #[default] Top, Center, Bottom }
 #[derive(Debug, Default, Copy, Clone)] struct Align   { x: AlignX, y: AlignY }
 #[derive(Debug,          Copy, Clone)] enum Sizing    { Fit(f32, f32), Grow(f32, f32), Fixed(f32), Percent(f32) }
-#[derive(Debug, Default, Copy, Clone, PartialEq)] struct Id { base_id: u32, id: u32, offset: u32, chars: *const u8, len: usize }
+#[derive(Debug, Default, Copy, Clone, PartialEq)] struct Id { id: u32, offset: u32, base_id: u32, len: usize, chars: *const u8 }
 impl Default for Sizing { fn default() -> Self { Self::Fit(0.0, f32::MAX) } }
 impl Align {
     const TopLeft:     Self = Self { y: AlignY::Top,    x: AlignX::Left };
@@ -208,59 +208,31 @@ struct Item {
 }
 
 impl Id {
-    fn from_clay(id: clay::id::Id) -> Self {
-        Self {
-            base_id: id.id.baseId,
-            id: id.id.id,
-            offset: id.id.offset,
-            chars: id.id.stringId.chars as *const u8,
-            len: id.id.stringId.length as usize
-        }
-    }
-    fn to_clay(id: Self) -> clay::id::Id {
+    fn clay(&self) -> clay::id::Id {
         clay::id::Id {
             id: clay::Clay_ElementId {
-                baseId: id.base_id,
-                id: id.id,
-                offset: id.offset,
+                id: self.id,
+                offset: self.offset,
+                baseId: self.base_id,
                 stringId: clay::Clay_String {
                     isStaticallyAllocated: false,
-                    chars: id.chars as *const i8,
-                    length: id.len as i32
+                    length: self.len as i32,
+                    chars: self.chars as *const i8
                 }
             }
         }
     }
     fn id(label: &str) -> Self {
-        Id::from_clay(
-            clay::id::Id {
-                id: unsafe {
-                    clay::Clay__HashString(label.into(), 0, clay::Clay__GetParentElementId())
-                }
-            }
-        )
+        let id = unsafe { clay::Clay__HashString(label.into(), 0, clay::Clay__GetParentElementId()) };
+        Self {
+            id: id.id,
+            offset: id.offset,
+            base_id: id.baseId,
+            len: id.stringId.length as usize,
+            chars: id.stringId.chars as *const u8
+        }
     }
 }
-
-// fn clay_string_from(s: &[u8]) -> clay::Clay_String {
-//     clay::Clay_String {
-//         chars: s.as_ptr() as *const i8,
-//         isStaticallyAllocated: true,
-//         length: s.len() as i32,
-//     }
-// }
-
-// pub fn clay_test() {
-//     unsafe {
-//         clay::Clay_SetCurrentContext(std::ptr::null_mut() as *mut clay::Clay_Context);
-//         clay::Clay__OpenElement();
-//         let decl = clay::Clay_ElementDeclaration {
-//             backgroundColor: (0.0, 0.0, 0.0, 0.0).into(),
-//
-//         };
-//         clay::Clay__ConfigureOpenElement();
-//     }
-// }
 
 impl Context {
     fn item<
@@ -294,7 +266,7 @@ impl Context {
 
         let decl = Declaration::<ImageElementData, CustomElementData>::new()
             .background_color(item.colour.into())
-            .id(Id::to_clay(item.id))
+            .id(item.id.clay())
             // .clip(true, true, clay::math::Vector2 { x: 0.0, y: 0.0 })
             .layout()
                 .width(sizing(item.width))
@@ -356,7 +328,7 @@ impl Context {
         let mouse_held    = self.input().mouse_held(winit::event::MouseButton::Left);
         let mouse_clicked = self.input().mouse_pressed(winit::event::MouseButton::Left);
 
-        let hover = c.pointer_over(Id::to_clay(id));
+        let hover = c.pointer_over(id.clay());
         let (down, click) = (hover && mouse_held, hover && mouse_clicked);
         if click {
             *clicked_id = id;
@@ -459,9 +431,9 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
     let mut c = clay.begin::<(), ()>();
 
-    let tab_id_wallet     = Id::from_clay(c.id("Wallet"));
-    let tab_id_finalizers = Id::from_clay(c.id("Finalizers"));
-    let tab_id_history    = Id::from_clay(c.id("History"));
+    let tab_id_wallet     = Id::id("Wallet");
+    let tab_id_finalizers = Id::id("Finalizers");
+    let tab_id_history    = Id::id("History");
 
     if pane_tab_l == Id::default() {
         pane_tab_l = tab_id_wallet;
