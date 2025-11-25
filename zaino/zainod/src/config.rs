@@ -44,7 +44,7 @@ where
 }
 
 /// Config information required for Zaino.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ZainodConfig {
     /// Type of backend to be used.

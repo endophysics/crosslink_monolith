@@ -241,7 +241,7 @@ pub fn wallet_main(wallet_state: Arc<Mutex<WalletState>>) {
                 let mut signing_set = TransparentSigningSet::new();
                 signing_set.add_key(miner_privkey);
 
-                let prover = LocalTxProver::with_default_location().unwrap();
+                let prover = LocalTxProver::bundled();
                 let extsk: &[ExtendedSpendingKey] = &[];
                 let sak: &[SpendAuthorizingKey] = &[];
 

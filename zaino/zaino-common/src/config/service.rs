@@ -4,7 +4,7 @@
 ///
 /// This configuration is used by multiple Zaino services that need to configure
 /// RPC timeouts and channel buffer sizes.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct ServiceConfig {
     /// Service RPC timeout in seconds
     pub timeout: u32,

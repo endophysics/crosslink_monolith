@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 /// Cache configuration for DashMaps.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct CacheConfig {
     /// Capacity of the DashMaps used for caching
     pub capacity: usize,
@@ -35,7 +35,7 @@ impl Default for CacheConfig {
 /// Database size limit configuration.
 ///
 /// This enum provides a clean TOML interface and easy extensibility for different units.
-#[derive(Debug, Clone, Copy, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Copy, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DatabaseSize {
     /// Limited to a specific size in GB
@@ -68,7 +68,7 @@ impl DatabaseSize {
 ///
 /// Configures the file path and size limits for persistent storage
 /// used by Zaino services.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct DatabaseConfig {
     /// Database file path.
     pub path: PathBuf,
@@ -89,7 +89,7 @@ impl Default for DatabaseConfig {
 /// Storage configuration combining cache and database settings.
 ///
 /// This is used by services that need both in-memory caching and persistent storage.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize, Default)]
 pub struct StorageConfig {
     /// Cache configuration. Uses defaults if not specified in TOML.
     #[serde(default)]
