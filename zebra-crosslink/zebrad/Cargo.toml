@@ -250,6 +250,9 @@ console-subscriber = { workspace = true, optional = true }
 
 tempfile = "3.19.1"
 zainod = { path = "../../zaino/zainod" }
+zaino-state = { path = "../../zaino/zaino-state" }
+zaino-common = { path = "../../zaino/zaino-common" }
+zaino-serve = { path = "../../zaino/zaino-serve" }
 
 [build-dependencies]
 vergen-git2 = { workspace = true, features = ["cargo", "rustc"] }

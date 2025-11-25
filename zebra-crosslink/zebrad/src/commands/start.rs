@@ -569,121 +569,54 @@ impl StartCmd {
         pin!(old_databases_task_handle_fused);
 
         {
-let zaino_config_str ="
-# Configuration for Zaino
+            let tmp_dir = tempfile::TempDir::new().unwrap();
 
-# Backend:
+            let zaino_config = zainodlib::config::ZainodConfig {
+                backend: zaino_state::BackendType::Fetch,
+                json_server_settings: Some(zaino_serve::server::config::JsonRpcServerConfig {
+                    json_rpc_listen_address: std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), 18232),
+                    cookie_dir: None,
+                }),
+                grpc_settings: zaino_serve::server::config::GrpcServerConfig {
+                    listen_address: std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), 18233),
+                    tls: None,
+                },
+                validator_settings: zaino_common::ValidatorConfig {
+                    validator_grpc_listen_address: std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), 8232),
+                    validator_jsonrpc_listen_address: std::net::SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)), 8232),
+                    validator_cookie_path: None,
+                    validator_user: Some("xxxxxx".to_owned()),
+                    validator_password: Some("xxxxxx".to_owned()),
+                },
+                service: zaino_common::ServiceConfig {
+                    timeout: 30,
+                    channel_size: 32,
+                },
+                storage: zaino_common::StorageConfig {
+                    cache: zaino_common::CacheConfig {
+                        capacity: 10000,
+                        shard_power: 4,
+                    },
+                    database: zaino_common::DatabaseConfig {
+                        path: std::path::PathBuf::from(tmp_dir.path()),
+                        size: zaino_common::DatabaseSize::Gb(16),
+                    },
+                },
+                zebra_db_path: std::path::PathBuf::from(&config.state.cache_dir),
+                network: zaino_common::Network::Regtest(zaino_common::ActivationHeights {
+                    before_overwinter: Some(1),
+                    overwinter: Some(1),
+                    sapling: Some(1),
+                    blossom: Some(1),
+                    heartwood: Some(1),
+                    canopy: Some(1),
+                    nu5: Some(1),
+                    nu6: Some(1),
+                    nu6_1: None,
+                    nu7: None,
+                }),
+            };
 
-# Type of backend to use. Options are:
-# - \"fetch\" - Uses JsonRPC client to fetch data (Zcashd, Zainod).
-# - \"state\" - Uses ReadStateService to fetch data (Zebrad).
-backend = \"fetch\"
-network = \"Regtest\"
-
-# Zainod JsonRPC server config:
-# Optional: Some enables Zaino's JsonRPC server.
-[json_server_settings]
-  # JsonRPC server listen addr. Required if json_server_settings is Some.
-  json_rpc_listen_address = \"127.0.0.1:18232\"
-
-  # Some enables cookie-based authentication for JsonRPC server.
-  # An empty PathBuf that is still Some will have a default emphemeral path assigned to it when zaino loads the config.
-  # (e.g., /tmp/zaino/.cookie or XDG_RUNTIME_DIR) will be used.
-  # Directory to store authentication cookie file.
-  # cookie_dir = \"\"
-  # cookie_dir = \"/path/to/cookie_dir\"
-
-# gRPC server config:
-# Required for valid zainod config.
-[grpc_settings]
-# Zainod's gRPC server listen address.
-  # SocketAddress, Required.
-  listen_address = \"127.0.0.1:18233\"
-
-  # Some Enables TLS for the gRPC server.
-  # tls: Option<GrpcTls>,
-  # [tls]
-    # Path to the TLS certificate file in PEM format.
-    # cert_path: \"\"
-    # cert_path = \"/path/to/cert.pem\"
-    # Path to the TLS private key file in PEM format.
-    # key_path = \"\"
-    # key_path = \"/path/to/key.pem\"
-
-# Validator config:
-# Required for valid zainod config.
-[validator_settings]
-  # Full node / validator listen address.
-  #
-  # Must be a \"private\" address as defined in [IETF RFC 1918] for ipv4 addreses and [IETF RFC 4193] for ipv6 addreses.
-  #
-  # Must use validator rpc cookie authentication when connecting to non localhost addresses.
-  # Required
-  validator_grpc_listen_address =  \"127.0.0.1:8232\"
-
-  # SocketAddr, Required.
-  validator_jsonrpc_listen_address = \"127.0.0.1:8232\"
-
-    # Optional. Enable validator rpc cookie authentication with Some.
-    # Path to the validator cookie file.
-    # validator_cookie_path = \"/path/to/validator.cookie\"
-    # validator_cookie_path = \"\"
-    # Optional. Enable  user / pass authentication with Some.
-    # Full node / validator Username.
-    # validator_user = \"\"
-    # Optional. Enable user / pass authentication with Some
-    # full node / validator Password.
-    # validator_password: \"\"
-    #
-#  Service-level configuration (timeout, channel size).
-#  Required.
-#  ...
-#  Storage configuration (cache and database).
-#  Required.
-#  [storage]
-#
-#  ZebraDB location.
-#  PathBuf, Required.
-#  zebra_db_path = \"\"
-#
-#  Network chain type.
-#  Required.
-#  Network chain type (Mainnet, Testnet, Regtest).
-#  network = \"Testnet\"
-
-# ----
-
-# Capacity of the Dashmaps used for the Mempool.
-# Also used by the BlockCache::NonFinalisedState when using the FetchService.
-# If omitted, Zaino uses an internal default or relies on library defaults.
-# map_capacity = 10000
-
-# Number of shard used in the DashMap used for the Mempool.
-# Also used by the BlockCache::NonFinalisedState when using the FetchService.
-#
-# shard_amount should greater than 0 and be a power of two.
-# If omitted, Zaino uses an internal default or relies on library defaults.
-# map_shard_amount = 16
-
-# Zaino Block Cache database file path.
-# If omitted, this defaults to $HOME/.cache/zaino/ (platform dependent).
-# zaino_db_path = \"/path/to/zaino_db\"
-
-# Zebra Block Cache database file path.
-# If omitted, this defaults to $HOME/.cache/zebra/ (platform dependent).
-# zebra_db_path = \"/path/to/zebra_db\"
-
-# Block Cache database maximum size in gb.
-# Only used by the FetchService.
-# If omitted, no specific limit may be enforced by Zaino for this setting initially.
-# db_size = 100
-";
-use std::io::Write;
-use std::path::PathBuf;
-            let mut tmp = tempfile::NamedTempFile::new().unwrap();
-            write!(tmp, "{}", zaino_config_str).unwrap();
-
-            let zaino_config = zainodlib::config::load_config(&tmp.path().to_path_buf()).unwrap();
             zainodlib::indexer::spawn_indexer(zaino_config).await.unwrap();
         }
 

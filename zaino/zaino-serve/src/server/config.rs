@@ -7,7 +7,7 @@ use tonic::transport::{Identity, ServerTlsConfig};
 use super::error::ServerError;
 
 /// Settings for a Zaino configured with gRPC TLS: paths to key and certificate.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct GrpcTls {
     /// Path to the TLS certificate file in PEM format.
     pub cert_path: PathBuf,
@@ -16,7 +16,7 @@ pub struct GrpcTls {
 }
 
 /// Configuration data for Zaino's gRPC server.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct GrpcServerConfig {
     /// gRPC server bind addr.
     pub listen_address: SocketAddr,
@@ -59,7 +59,7 @@ impl GrpcServerConfig {
 }
 
 /// Configuration data for Zaino's JSON RPC server, capable of servicing clients over TCP.
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct JsonRpcServerConfig {
     /// Server bind addr.
     pub json_rpc_listen_address: SocketAddr,

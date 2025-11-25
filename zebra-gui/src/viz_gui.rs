@@ -216,13 +216,19 @@ pub fn viz_gui_anything_happened_at_all(viz_state: &mut VizState) -> bool {
             bc.block.is_best_chain = false;
         }
 
+
+        let zoom = ZOOM_FACTOR.powf(viz_state.zoom);
+        // origin
+        let screen_unit = SCREEN_UNIT_CONST * zoom;
+        let spawn_y = viz_state.camera_y - 7000.0 / screen_unit;
+
         for bc in &message.bc_blocks {
             if let Some(r) = viz_state.on_screen_bcs.get_mut(&bc.this_hash) {
                 anything_happened |= r.block != *bc;
                 r.block = *bc;
             } else {
                 anything_happened |= true;
-                viz_state.on_screen_bcs.insert(bc.this_hash, OnScreenBc { block: *bc, alpha: 0.0, ..Default::default() });
+                viz_state.on_screen_bcs.insert(bc.this_hash, OnScreenBc { block: *bc, alpha: 0.0, y: spawn_y, ..Default::default() });
             }
         }
         for bft in &message.bft_blocks {
@@ -231,7 +237,7 @@ pub fn viz_gui_anything_happened_at_all(viz_state: &mut VizState) -> bool {
                 r.block = *bft;
             } else {
                 anything_happened |= true;
-                viz_state.on_screen_bfts.insert(bft.this_hash, OnScreenBft { block: *bft, alpha: 0.0, ..Default::default() });
+                viz_state.on_screen_bfts.insert(bft.this_hash, OnScreenBft { block: *bft, alpha: 0.0, y: spawn_y, ..Default::default() });
             }
         }
     }
@@ -272,9 +278,10 @@ fn e_lerp(from: f32, to: f32, dt: f32) -> f32 {
     }
 }
 
+const ZOOM_FACTOR : f32 = 1.2;
+const SCREEN_UNIT_CONST : f32 = 10.0;
+
 pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, draw_ctx: &DrawCtx, dt: f32, input_ctx: &InputCtx) {
-    const ZOOM_FACTOR : f32 = 1.2;
-    const SCREEN_UNIT_CONST : f32 = 10.0;
     {
         let dxm = (input_ctx.mouse_pos().0.clamp(0, draw_ctx.window_width) - draw_ctx.window_width/2) as f32;
         let dym = (input_ctx.mouse_pos().1.clamp(0, draw_ctx.window_height) - draw_ctx.window_height/2) as f32;
@@ -434,7 +441,7 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
         on_screen_bft.alpha = e_lerp(on_screen_bft.alpha, on_screen_bft.t_alpha, dt);
     }
 
-    draw_ctx.circle(origin_x as f32, origin_y as f32, (screen_unit/2.0) as f32, 0xff_0000bb);
+    //draw_ctx.circle(origin_x as f32, origin_y as f32, (screen_unit/2.0) as f32, 0xff_0000bb);
 
     for on_screen_bc in viz_state.on_screen_bcs.values() {
         let x = on_screen_bc.x;
@@ -530,8 +537,6 @@ pub(crate) fn viz_gui_draw_the_stuff_for_the_things(viz_state: &mut VizState, dr
             );
         }
     }
-
-    draw_ctx.text_line(origin_x+2.0*screen_unit, origin_y, screen_unit*3.0, &format!("Bc Height: {} BFT Height: {}", viz_state.bc_tip_height, viz_state.bft_tip_height), 0xff_ffffff);
 
     if viz_state.last_frame_hovered_hash != hovered_block {
         viz_state.last_frame_hovered_hash = hovered_block;
