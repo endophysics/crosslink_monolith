@@ -428,9 +428,10 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             }, |c| {
                 let balance_text_h = ui.scale16(48.0);
 
+                // spacer
+                ui.item(c, |c| Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
+
                 if pane_tab_l == tab_id_wallet {
-                    // spacer
-                    ui.item(c, |c| Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
 
                     // balance container
                     ui.item(c, |c| Item {
