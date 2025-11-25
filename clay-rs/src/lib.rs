@@ -28,8 +28,8 @@ use text::TextConfig;
 use text::TextElementConfig;
 #[derive(Copy, Clone)]
 pub struct Declaration<'render, ImageElementData: 'render, CustomElementData: 'render> {
-    inner: Clay_ElementDeclaration,
-    _phantom: PhantomData<(&'render CustomElementData, &'render ImageElementData)>,
+    pub inner: Clay_ElementDeclaration,
+    pub _phantom: PhantomData<(&'render CustomElementData, &'render ImageElementData)>,
 }
 
 impl<'render, ImageElementData: 'render, CustomElementData: 'render>
@@ -166,20 +166,20 @@ unsafe extern "C" fn error_handler(error_data: Clay_ErrorData) {
 pub struct Clay {
     /// Memory used internally by clay
     #[cfg(feature = "std")]
-    _memory: Vec<u8>,
-    context: *mut Clay_Context,
+    pub _memory: Vec<u8>,
+    pub context: *mut Clay_Context,
     /// Memory used internally by clay. The caller is responsible for managing this memory in
     /// no_std case.
     #[cfg(not(feature = "std"))]
-    _memory: *const core::ffi::c_void,
+    pub _memory: *const core::ffi::c_void,
     /// Stores the raw pointer to the callback data for later cleanup
-    text_measure_callback: Option<*const core::ffi::c_void>,
+    pub text_measure_callback: Option<*const core::ffi::c_void>,
 }
 
 pub struct ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData> {
-    clay: &'clay mut Clay,
-    _phantom: core::marker::PhantomData<(&'render ImageElementData, &'render CustomElementData)>,
-    dropped: bool,
+    pub clay: &'clay mut Clay,
+    pub _phantom: core::marker::PhantomData<(&'render ImageElementData, &'render CustomElementData)>,
+    pub dropped: bool,
 }
 
 impl<'render, 'clay: 'render, ImageElementData: 'render, CustomElementData: 'render>

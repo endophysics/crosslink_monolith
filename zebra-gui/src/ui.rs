@@ -268,13 +268,21 @@ impl Context {
         'clay: 'render,
         ImageElementData: 'render,
         CustomElementData: 'render,
-        T: FnOnce(&mut clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>)
+        G: FnOnce(&clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>) -> Item,
+        F: FnOnce(&clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>)
     >(
         &self,
-        c: &mut clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>,
-        item: Item,
-        F: T
+        c: &clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>,
+        g: G,
+        f: F
     ) {
+        unsafe {
+            clay::Clay_SetCurrentContext(c.clay.context);
+            clay::Clay__OpenElement();
+        }
+
+        let item = g(c);
+
         fn sizing(sizing: Sizing) -> clay::layout::Sizing {
             match sizing {
                 Sizing::Fit(min, max)  => { clay::layout::Sizing::Fit(min, max) }
@@ -283,8 +291,8 @@ impl Context {
                 Sizing::Percent(p)     => { clay::layout::Sizing::Percent(p) }
             }
         }
-        c.with(
-            &Declaration::new()
+
+        let decl = Declaration::<ImageElementData, CustomElementData>::new()
             .background_color(item.colour.into())
             .id(Id::to_clay(item.id))
             // .clip(true, true, clay::math::Vector2 { x: 0.0, y: 0.0 })
@@ -320,9 +328,18 @@ impl Context {
                 .top_right(item.radius.1)
                 .bottom_left(item.radius.2)
                 .bottom_right(item.radius.3)
-            .end(),
-            F
-        );
+            .end()
+            .inner;
+
+        unsafe {
+            clay::Clay__ConfigureOpenElement(decl);
+        }
+
+        f(c);
+
+        unsafe {
+            clay::Clay__CloseElement();
+        }
     }
 
     fn button<
@@ -332,7 +349,7 @@ impl Context {
         CustomElementData: 'render,
     >(
         &self,
-        c: &mut clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>,
+        c: &clay::ClayLayoutScope<'clay, 'render, ImageElementData, CustomElementData>,
         clicked_id: &mut Id,
         id: Id
     ) -> (bool, (u8, u8, u8, u8)) {
@@ -450,7 +467,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
         pane_tab_l = tab_id_wallet;
     }
 
-    ui.item(&mut c, Item {
+    ui.item(&c, |c| Item {
         id: Id::id("Main"),
         padding, child_gap,
         width: Grow!(),
@@ -463,7 +480,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             Sizing::Percent(pct * ui.scale)
         };
 
-        ui.item(c, Item {
+        ui.item(c, |c| Item {
             id: Id::id("Main"),
             direction: Direction::TopToBottom,
             width: pane_pct,
@@ -471,7 +488,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             ..Default::default()
         }, |c| {
 
-            ui.item(c, Item {
+            ui.item(c, |c| Item {
                 id: Id::id("Main"),
                 child_gap,
                 width: Percent!(1.0),
@@ -490,7 +507,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                         pane_tab_l = id;
                     }
 
-                    ui.item(c, Item {
+                    ui.item(c, |c| Item {
                         id,
                         radius, padding,
                         colour: if pane_tab_l == id { active_tab_col } else { inactive_tab_col },
@@ -509,7 +526,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             });
 
             // Main contents
-            ui.item(c, Item {
+            ui.item(c, |c| Item {
                 id: Id::id("Main Contents"),
                 colour: (0x12, 0x12, 0x12, 0xff),
                 radius: (0.0, 0.0, radius.2, radius.3),
@@ -522,10 +539,10 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
                 if pane_tab_l == tab_id_wallet {
                     // spacer
-                    ui.item(c, Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
+                    ui.item(c, |c| Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
 
                     // balance container
-                    ui.item(c, Item {
+                    ui.item(c, |c| Item {
                         width: Percent!(1.0),
                         height: Fit!(),
                         padding,
@@ -543,7 +560,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                     let padding = child_gap.dup4();
 
                     // buttons container
-                    ui.item(c, Item {
+                    ui.item(c, |c| Item {
                         id: Id::id("Buttons Container"),
                         padding, child_gap, align: Align::Center,
                         width: Percent!(1.0),
@@ -554,7 +571,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                         let mut f = |button| {
                             let id = Id::id(button);
                             let (clicked, colour) = ui.button(c, &mut clicked_id, id);
-                            ui.item(c, Item {
+                            ui.item(c, |c| Item {
                                 id, child_gap, align: Align::Center,
                                 direction: Direction::TopToBottom,
                                 width: Fit!(),
@@ -565,7 +582,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                                 let radius = ui.scale(24.0);
 
                                 // Button circle
-                                ui.item(c, Item {
+                                ui.item(c, |c| Item {
                                     colour, radius: radius.dup4(), padding, child_gap, align: Align::Center,
                                     width:  Fixed!(radius * 2.0),
                                     height: Fixed!(radius * 2.0),
@@ -591,7 +608,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
                 } else if pane_tab_l == tab_id_finalizers {
                 } else if pane_tab_l == tab_id_history {
-                    ui.item(c, Item {
+                    ui.item(c, |c| Item {
                         width: Percent!(1.0),
                         height: Fit!(),
                         padding,
@@ -608,7 +625,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             });
         });
 
-        ui.item(c, Item {
+        ui.item(c, |c| Item {
             id: Id::id("Central Gap"),
             radius, padding, child_gap,
             width: Grow!(),
@@ -617,7 +634,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
         }, |c| {
         });
 
-        ui.item(c, Item {
+        ui.item(c, |c| Item {
             id: Id::id("Right Pane"),
             radius, padding, child_gap,
             colour: pane_col,
@@ -626,7 +643,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             ..Default::default()
         }, |c| {
 
-            ui.item(c, Item {
+            ui.item(c, |c| Item {
                 id: Id::id("Main"),
                 child_gap,
                 width: Percent!(1.0),
@@ -647,10 +664,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                         pane_tab_r = id;
                     }
 
-                    use std::io::Write;
-                    println!("Making item! {}", label);
-                    std::io::stdout().flush().expect("");
-                    ui.item(c, Item {
+                    ui.item(c, |c| Item {
                         id,
                         radius, padding,
                         colour: if pane_tab_r == id { active_tab_col } else { inactive_tab_col },
