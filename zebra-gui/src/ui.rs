@@ -481,7 +481,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
         };
 
         ui.item(c, |c| Item {
-            id: Id::id("Main"),
+            id: Id::id("Left Pane"),
             direction: Direction::TopToBottom,
             width: pane_pct,
             height: Grow!(),
@@ -489,7 +489,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
         }, |c| {
 
             ui.item(c, |c| Item {
-                id: Id::id("Main"),
+                id: Id::id("Tab Bar"),
                 child_gap,
                 width: Percent!(1.0),
                 height: Fit!(),
@@ -636,22 +636,21 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
         ui.item(c, |c| Item {
             id: Id::id("Right Pane"),
-            radius, padding, child_gap,
-            colour: pane_col,
+            direction: Direction::TopToBottom,
             width: pane_pct,
             height: Grow!(),
             ..Default::default()
         }, |c| {
 
             ui.item(c, |c| Item {
-                id: Id::id("Main"),
+                id: Id::id("Tab Bar"),
                 child_gap,
                 width: Percent!(1.0),
                 height: Fit!(),
                 align: Align::Center,
                 ..Default::default()
             }, |c| {
-            
+
                 let mut tab = |label| {
                     let tab_text_h = ui.scale16(18.0);
 
@@ -682,12 +681,24 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 tab("Settings");
             });
 
+            // Main contents
+            ui.item(c, |c| Item {
+                id: Id::id("Main Contents"),
+                colour: (0x12, 0x12, 0x12, 0xff),
+                radius: (0.0, 0.0, radius.2, radius.3),
+                direction: Direction::TopToBottom,
+                width: Percent!(1.0),
+                height: Grow!(),
+                ..Default::default()
+            }, |c| {
+            });
+
         });
     });
 
     ui.clicked_id = clicked_id;
     ui.pane_tab_l = pane_tab_l;
-
+    ui.pane_tab_r = pane_tab_r;
 
     // Return the list of render commands of your layout
     let render_commands = c.end();
