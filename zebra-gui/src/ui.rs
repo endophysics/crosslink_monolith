@@ -1,5 +1,6 @@
 #![allow(warnings)]
 
+use std::thread::current;
 use std::{hash::Hash};
 use winit::{event::MouseButton, keyboard::KeyCode};
 use clay_layout as clay;
@@ -246,7 +247,7 @@ impl Id {
 //         clay::Clay__OpenElement();
 //         let decl = clay::Clay_ElementDeclaration {
 //             backgroundColor: (0.0, 0.0, 0.0, 0.0).into(),
-// 
+//
 //         };
 //         clay::Clay__ConfigureOpenElement();
 //     }
@@ -426,6 +427,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
     });
 
     let mut clicked_id = ui.clicked_id;
+    let mut tab_id = ui.tab_id;
 
     let mut c = clay.begin::<(), ()>();
 
@@ -440,6 +442,8 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
             // clay::layout::Sizing::Percent((pct * ui.scale).min(pct))
             Sizing::Percent(pct * ui.scale)
         };
+
+        let mut current_tab = 0;
 
         // left pane
         ui.item(c, Item {
@@ -461,41 +465,34 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
 
                 let radius = (radius.0, radius.1, 0.0, 0.0);
 
-                // Wallet tab
-                ui.item(c, Item {
-                    radius, padding,
-                    colour: active_tab_col,
-                    width: Grow!(),
-                    height: Grow!(),
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    c.text("Wallet", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
+                let mut tab = |name| {
+                    let id = Id::from_clay(c.id(name));
+                    let (_, color) = ui.button(c, &mut tab_id, id);
+                    ui.item(c, Item {
+                        id,
+                        radius,
+                        padding,
+                        colour: color,
+                        width: Grow!(),
+                        height: Grow!(),
+                        align: Align::Center,
+                        ..Default::default()
+                    }, |c| {
+                        c.text(name, clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                    });
 
-                // Finalizers tab
-                ui.item(c, Item {
-                    radius, padding,
-                    colour: inactive_tab_col,
-                    width: Grow!(),
-                    height: Grow!(),
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    c.text("Finalizers", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
+                    tab_id.id == id.id
+                };
 
-                // History tab
-                ui.item(c, Item {
-                    radius, padding,
-                    colour: inactive_tab_col,
-                    width: Grow!(),
-                    height: Grow!(),
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    c.text("History", clay::text::TextConfig::new().font_size(tab_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
+                if tab("Wallet") {
+                    current_tab = 0;
+                }
+                if tab("Finalizers") {
+                    current_tab = 1;
+                }
+                if tab("History") {
+                    current_tab = 2;
+                }
             });
 
             let balance_text_h = ui.scale16(48.0);
@@ -509,74 +506,93 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
                 height: Grow!(),
                 ..Default::default()
             }, |c| {
-
                 // spacer
                 ui.item(c, Item { width: Grow!(), height: Fixed!(ui.scale(32.0)), ..Default::default() }, |c| {});
 
-                // balance container
-                ui.item(c, Item {
-                    width: Percent!(1.0),
-                    height: Fit!(),
-                    padding,
-                    align: Align::Center,
-                    ..Default::default()
-                }, |c| {
-                    let balance = wallet_state.lock().unwrap().balance;
-                    let zec_full = balance / 100_000_000;
-                    let zec_part = balance % 100_000_000;
-                    balance_str = format!("{}.{} cTAZ", zec_full, &format!("{:03}", zec_part)[..3]);
-                    c.text(&balance_str, clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                });
-
-                let child_gap = child_gap as f32;
-                let padding = child_gap.dup4();
-
-                // buttons container
-                ui.item(c, Item {
-                    padding, child_gap, align: Align::Center,
-                    width: Percent!(1.0),
-                    height: Fit!(),
-                    ..Default::default()
-                }, |c| {
-
-                    let mut f = |button| {
-                        let id = Id::from_clay(c.id(button));
-                        let (clicked, colour) = ui.button(c, &mut clicked_id, id);
+                match current_tab {
+                    0 /* wallet */ =>  {
+                        // balance container
                         ui.item(c, Item {
-                            id, child_gap, align: Align::Center,
-                            direction: Direction::TopToBottom,
-                            width: Fit!(),
+                            width: Percent!(1.0),
+                            height: Fit!(),
+                            padding,
+                            align: Align::Center,
+                            ..Default::default()
+                        }, |c| {
+                            let balance = wallet_state.lock().unwrap().balance;
+                            let zec_full = balance / 100_000_000;
+                            let zec_part = balance % 100_000_000;
+                            balance_str = format!("{}.{} cTAZ", zec_full, &format!("{:03}", zec_part)[..3]);
+                            c.text(&balance_str, clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                        });
+
+                        let child_gap = child_gap as f32;
+                        let padding = child_gap.dup4();
+
+                        // buttons container
+                        ui.item(c, Item {
+                            padding, child_gap, align: Align::Center,
+                            width: Percent!(1.0),
                             height: Fit!(),
                             ..Default::default()
                         }, |c| {
+                            let mut f = |button| {
+                                let id = Id::from_clay(c.id(button));
+                                let (clicked, colour) = ui.button(c, &mut clicked_id, id);
+                                ui.item(c, Item {
+                                    id,
+                                    child_gap,
+                                    align: Align::Center,
+                                    direction: Direction::TopToBottom,
+                                    width: Fit!(),
+                                    height: Fit!(),
+                                    ..Default::default()
+                                }, |c| {
+                                    let radius = ui.scale(24.0);
 
-                            let radius = ui.scale(24.0);
+                                    // Button circle
+                                    ui.item(c, Item {
+                                        colour, radius: radius.dup4(), padding, child_gap, align: Align::Center,
+                                        width:  Fixed!(radius * 2.0),
+                                        height: Fixed!(radius * 2.0),
+                                        ..Default::default()
+                                    }, |c| {
+                                        let temp_letter_symbol_h = ui.scale16(32.0);
+                                        c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                                    });
 
-                            // Button circle
-                            ui.item(c, Item {
-                                colour, radius: radius.dup4(), padding, child_gap, align: Align::Center,
-                                width:  Fixed!(radius * 2.0),
-                                height: Fixed!(radius * 2.0),
-                                ..Default::default()
-                            }, |c| {
-                                let temp_letter_symbol_h = ui.scale16(32.0);
-                                c.text(&button[..1], clay::text::TextConfig::new().font_size(temp_letter_symbol_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
-                            });
+                                    let button_text_h = ui.scale16(16.0);
+                                    c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                                });
+                                clicked
+                            };
 
-                            let button_text_h = ui.scale16(16.0);
-                            c.text(button, clay::text::TextConfig::new().font_size(button_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                            if f("Send")    { println!("Send!");    }
+                            if f("Receive") { println!("Receive!"); }
+                            if f("Faucet")  { println!("Faucet!");  }
+                            if f("Stake")   { println!("Stake!");   }
+                            if f("Unstake") { println!("Unstake!"); }
                         });
-                        clicked
-                    };
-
-                    if f("Send")    { println!("Send!");    }
-                    if f("Receive") { println!("Receive!"); }
-                    if f("Faucet")  { println!("Faucet!");  }
-                    if f("Stake")   { println!("Stake!");   }
-                    if f("Unstake") { println!("Unstake!"); }
-
-                });
-
+                    }
+                    1 /* finalizers */ =>  {
+                    }
+                    2 /* history */ =>  {
+                        ui.item(c, Item {
+                            width: Percent!(1.0),
+                            height: Fit!(),
+                            padding,
+                            align: Align::Center,
+                            ..Default::default()
+                        }, |c| {
+                            let balance = wallet_state.lock().unwrap().balance;
+                            let zec_full = balance / 100_000_000;
+                            let zec_part = balance % 100_000_000;
+                            balance_str = format!("{}.{} cTAZ", zec_full, &format!("{:03}", zec_part)[..3]);
+                            c.text(&balance_str, clay::text::TextConfig::new().font_size(balance_text_h).color(WHITE_CLAY).alignment(clay::text::TextAlignment::Center).end());
+                        });
+                    }
+                    _ => {},
+                }
             });
         });
 
@@ -601,6 +617,7 @@ fn run_ui(ui: &mut Context, wallet_state: Arc<Mutex<wallet::WalletState>>, _data
     });
 
     ui.clicked_id = clicked_id;
+    ui.tab_id = tab_id;
 
 
     // Return the list of render commands of your layout
@@ -699,6 +716,7 @@ pub struct Context {
     pub dpi_scale: f32,
 
     pub clicked_id: Id,
+    pub tab_id: Id,
 }
 
 impl Context {
