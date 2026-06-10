@@ -1,8 +1,6 @@
 use static_assertions::*;
 use std::{io::Write, mem::align_of, mem::size_of};
 use zebra_chain::serialization::{ZcashDeserialize, ZcashSerialize, SerializationError};
-use zerocopy::*;
-use zerocopy_derive::*;
 
 use zcash_primitives::bft::*;
 
@@ -21,7 +19,6 @@ impl ZcashSerialize for BftBlockAndFatPointerToItWrap {
 
 
 #[repr(C)]
-#[derive(Immutable, KnownLayout, IntoBytes, FromBytes)]
 pub struct TFHdr {
     pub magic: [u8; 8],
     pub instrs_o: u64,
@@ -29,8 +26,50 @@ pub struct TFHdr {
     pub instr_size: u32, // used as stride
 }
 
+impl TFHdr {
+    fn to_ne_bytes(&self) -> [u8; size_of::<TFHdr>()] {
+        const_assert!(size_of::<TFHdr>() == 24);
+
+        let mut bytes = [0u8; size_of::<TFHdr>()];
+        bytes[0..8].copy_from_slice(&self.magic);
+        bytes[8..16].copy_from_slice(&self.instrs_o.to_ne_bytes());
+        bytes[16..20].copy_from_slice(&self.instrs_n.to_ne_bytes());
+        bytes[20..24].copy_from_slice(&self.instr_size.to_ne_bytes());
+        bytes
+    }
+
+    fn from_prefix(bytes: &[u8]) -> Result<Self, String> {
+        const_assert!(size_of::<TFHdr>() == 24);
+
+        if bytes.len() < size_of::<TFHdr>() {
+            return Err("not enough bytes for test format header".to_string());
+        }
+
+        Ok(TFHdr {
+            magic: bytes[0..8]
+                .try_into()
+                .expect("slice length is checked above"),
+            instrs_o: u64::from_ne_bytes(
+                bytes[8..16]
+                    .try_into()
+                    .expect("slice length is checked above"),
+            ),
+            instrs_n: u32::from_ne_bytes(
+                bytes[16..20]
+                    .try_into()
+                    .expect("slice length is checked above"),
+            ),
+            instr_size: u32::from_ne_bytes(
+                bytes[20..24]
+                    .try_into()
+                    .expect("slice length is checked above"),
+            ),
+        })
+    }
+}
+
 #[repr(C)]
-#[derive(Clone, Copy, Immutable, IntoBytes, FromBytes)]
+#[derive(Clone, Copy)]
 pub struct TFSlice {
     pub o: u64,
     pub size: u64,
@@ -58,12 +97,72 @@ impl From<&[u64; 2]> for TFSlice {
 type TFInstrKind = u32;
 
 #[repr(C)]
-#[derive(Clone, Copy, Immutable, IntoBytes, FromBytes)]
+#[derive(Clone, Copy)]
 pub struct TFInstr {
     pub kind: TFInstrKind,
     pub flags: u32,
     pub data: TFSlice,
     pub val: [u64; 2],
+}
+
+impl TFInstr {
+    fn to_ne_bytes(&self) -> [u8; size_of::<TFInstr>()] {
+        const_assert!(size_of::<TFInstr>() == 40);
+
+        let mut bytes = [0u8; size_of::<TFInstr>()];
+        bytes[0..4].copy_from_slice(&self.kind.to_ne_bytes());
+        bytes[4..8].copy_from_slice(&self.flags.to_ne_bytes());
+        bytes[8..16].copy_from_slice(&self.data.o.to_ne_bytes());
+        bytes[16..24].copy_from_slice(&self.data.size.to_ne_bytes());
+        bytes[24..32].copy_from_slice(&self.val[0].to_ne_bytes());
+        bytes[32..40].copy_from_slice(&self.val[1].to_ne_bytes());
+        bytes
+    }
+
+    fn from_prefix(bytes: &[u8]) -> Result<Self, String> {
+        const_assert!(size_of::<TFInstr>() == 40);
+
+        if bytes.len() < size_of::<TFInstr>() {
+            return Err("not enough bytes for test format instruction".to_string());
+        }
+
+        Ok(TFInstr {
+            kind: u32::from_ne_bytes(
+                bytes[0..4]
+                    .try_into()
+                    .expect("slice length is checked above"),
+            ),
+            flags: u32::from_ne_bytes(
+                bytes[4..8]
+                    .try_into()
+                    .expect("slice length is checked above"),
+            ),
+            data: TFSlice {
+                o: u64::from_ne_bytes(
+                    bytes[8..16]
+                        .try_into()
+                        .expect("slice length is checked above"),
+                ),
+                size: u64::from_ne_bytes(
+                    bytes[16..24]
+                        .try_into()
+                        .expect("slice length is checked above"),
+                ),
+            },
+            val: [
+                u64::from_ne_bytes(
+                    bytes[24..32]
+                        .try_into()
+                        .expect("slice length is checked above"),
+                ),
+                u64::from_ne_bytes(
+                    bytes[32..40]
+                        .try_into()
+                        .expect("slice length is checked above"),
+                ),
+            ],
+        })
+    }
 }
 
 pub const TEST_STAKE_IGNORED: u64 = u64::MAX;
@@ -352,7 +451,7 @@ impl TF {
             instr_size: size_of::<TFInstr>() as u32,
         };
         writer
-            .write_all(hdr.as_bytes())
+            .write_all(&hdr.to_ne_bytes())
             .expect("writing shouldn't fail");
         writer
             .write_all(&self.data)
@@ -364,9 +463,11 @@ impl TF {
             let align_bytes = &ALIGN_0S[..align_size];
             writer.write_all(align_bytes);
         }
-        writer
-            .write_all(self.instrs.as_bytes())
-            .expect("writing shouldn't fail");
+        for instr in &self.instrs {
+            writer
+                .write_all(&instr.to_ne_bytes())
+                .expect("writing shouldn't fail");
+        }
 
         true
     }
@@ -388,26 +489,41 @@ impl TF {
     // Simple version, all in one go... for large files we'll want to break this up; get hdr &
     // get/stream instrs, then read data as needed
     pub fn read_from_bytes(bytes: &[u8]) -> Result<Self, String> {
-        let tf_hdr = match TFHdr::ref_from_prefix(&bytes[0..]) {
-            Ok((hdr, _)) => hdr,
-            Err(err) => return Err(err.to_string()),
-        };
+        let tf_hdr = TFHdr::from_prefix(bytes)?;
+        let instrs_o = tf_hdr.instrs_o as usize;
+        let instrs_n = tf_hdr.instrs_n as usize;
+        let instr_size = tf_hdr.instr_size as usize;
 
-        let read_instrs = <[TFInstr]>::ref_from_prefix_with_elems(
-            &bytes[tf_hdr.instrs_o as usize..],
-            tf_hdr.instrs_n as usize,
-        );
+        if instrs_o < size_of::<TFHdr>() || instrs_o > bytes.len() {
+            return Err("test format instruction offset is out of bounds".to_string());
+        }
 
-        let instrs = match read_instrs {
-            Ok((instrs, _)) => instrs,
-            Err(err) => return Err(err.to_string()),
-        };
+        if instr_size < size_of::<TFInstr>() {
+            return Err("test format instruction stride is too small".to_string());
+        }
 
-        let data = &bytes[size_of::<TFHdr>()..tf_hdr.instrs_o as usize];
+        let instrs_end = instrs_o
+            .checked_add(
+                instrs_n
+                    .checked_mul(instr_size)
+                    .ok_or_else(|| "test format instruction section is too large".to_string())?,
+            )
+            .ok_or_else(|| "test format instruction section is too large".to_string())?;
+
+        if instrs_end > bytes.len() {
+            return Err("test format instruction section is out of bounds".to_string());
+        }
+
+        let mut instrs = Vec::with_capacity(instrs_n);
+        for instr_bytes in bytes[instrs_o..instrs_end].chunks_exact(instr_size) {
+            instrs.push(TFInstr::from_prefix(instr_bytes)?);
+        }
+
+        let data = &bytes[size_of::<TFHdr>()..instrs_o];
 
         // TODO: just use slices, don't copy to vectors
         let tf = TF {
-            instrs: instrs.to_vec(),
+            instrs,
             data: data.to_vec(),
         };
 
