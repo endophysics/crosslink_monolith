@@ -4,7 +4,7 @@
 
 use zebra_chain::{
     block::Height,
-    parameters::{subsidy::*, Network},
+    parameters::{constants::magics, subsidy::*, Network},
     transparent::{self},
 };
 
@@ -24,7 +24,7 @@ fn funding_stream_address_index(
         return None;
     }
 
-    if network.magic().0 == [b'C',b'l',b'T',b'0'] {
+    if network.magic() == magics::CROSSLINK_TESTNET_0 {
         return Some(0);
     }
 
