@@ -130,7 +130,7 @@ impl StartCmd {
 
         let is_clt0 = 'is_clt0: { // Crosslink_Testnet_0
             if let zebra_chain::parameters::Network::Testnet(params) = &config.network.network {
-                if params.network_magic().0 == [b'C',b'l',b'T',b'0'] {
+                if params.network_magic() == zebra_chain::parameters::constants::magics::CROSSLINK_TESTNET_0 {
                     break 'is_clt0 true;
                 }
             }

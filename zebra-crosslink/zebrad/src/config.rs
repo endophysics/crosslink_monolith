@@ -225,7 +225,7 @@ impl ZebradConfig {
     pub fn crosslink_default() -> Self {
         use zebra_chain::{
             block::Height,
-            parameters::{subsidy::FundingStreamReceiver, testnet, Magic},
+            parameters::{subsidy::FundingStreamReceiver, testnet},
         };
 
         Self {
@@ -261,7 +261,7 @@ impl ZebradConfig {
 
                 network: testnet::Parameters::build()
                     // .with_network_name("Crosslink_Testnet_0")
-                    .with_network_magic(Magic([67, 108, 84, 48]))
+                    .with_network_magic(zebra_chain::parameters::constants::magics::CROSSLINK_TESTNET_0)
                     .with_slow_start_interval(Height(0))
                     .with_genesis_hash("05a60a92d99d85997cce3b87616c089f6124d7342af37106edc76126334a2c38")
                     .with_funding_streams(vec![testnet::ConfiguredFundingStreams {
