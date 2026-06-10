@@ -1,7 +1,7 @@
 
 [network.testnet_parameters]
 slow_start_interval = 0
-network_magic = [67, 108, 82, 110] # ClRn = Crosslink Regestnet
+network_magic = [67, 108, 84, 48] # ClT0 = Crosslink Testnet 0
 
 [consensus]
 checkpoint_sync = false
@@ -68,4 +68,3 @@ buffer_limit = 128000
 force_use_color = false
 use_color = true
 use_journald = false
-

@@ -41,7 +41,7 @@ network = "Testnet"
 peerset_initial_target_size = 25
 
 [network.testnet_parameters]
-network_magic = [67, 108, 84, 110] # ClTn = Crosslink Testnet
+network_magic = [67, 108, 84, 48] # ClT0 = Crosslink Testnet 0
 slow_start_interval = 0
 
 [network.testnet_parameters.activation_heights]
