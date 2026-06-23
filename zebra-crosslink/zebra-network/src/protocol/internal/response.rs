@@ -7,7 +7,67 @@ use zebra_chain::{
     transaction::{UnminedTx, UnminedTxId},
 };
 
-use crate::{meta_addr::MetaAddr, protocol::internal::InventoryResponse, PeerSocketAddr};
+use crate::{
+    meta_addr::MetaAddr,
+    protocol::{
+        external::types::{PeerServices, Version},
+        internal::InventoryResponse,
+    },
+    PeerSocketAddr,
+};
+
+#[cfg(any(test, feature = "proptest-impl"))]
+use proptest::{arbitrary::any, prelude::*};
+
+/// Information about a currently connected peer in the live peer set.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConnectedPeer {
+    /// The transient address that identifies this connection while it is open.
+    pub addr: PeerSocketAddr,
+
+    /// Whether this connection was initiated by the remote peer.
+    pub inbound: bool,
+
+    /// Whether the peer is currently ready to receive a request from Zebra.
+    pub ready: bool,
+
+    /// The peer's advertised user agent.
+    pub user_agent: String,
+
+    /// The negotiated network protocol version.
+    pub negotiated_version: Version,
+
+    /// The services advertised by the peer.
+    pub services: PeerServices,
+}
+
+#[cfg(any(test, feature = "proptest-impl"))]
+impl Arbitrary for ConnectedPeer {
+    type Parameters = ();
+    type Strategy = BoxedStrategy<Self>;
+
+    fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+        (
+            any::<PeerSocketAddr>(),
+            any::<bool>(),
+            any::<bool>(),
+            any::<String>(),
+            any::<u32>(),
+            any::<u64>(),
+        )
+            .prop_map(
+                |(addr, inbound, ready, user_agent, negotiated_version, services)| ConnectedPeer {
+                    addr,
+                    inbound,
+                    ready,
+                    user_agent,
+                    negotiated_version: Version(negotiated_version),
+                    services: PeerServices::from_bits_truncate(services),
+                },
+            )
+            .boxed()
+    }
+}
 
 #[cfg(any(test, feature = "proptest-impl"))]
 use proptest_derive::Arbitrary;
@@ -49,6 +109,9 @@ pub enum Response {
     // TODO: make this into an IndexMap - an ordered unique list of headers (#2244)
     BlockHeaders(Vec<block::CountedHeader>),
 
+    /// A list of currently connected peers in the live peer set.
+    ConnectedPeers(Vec<ConnectedPeer>),
+
     /// A list of unmined transaction IDs.
     ///
     /// v4 transactions use a legacy transaction ID, and
@@ -88,6 +151,9 @@ impl fmt::Display for Response {
             Response::BlockHashes(hashes) => format!("BlockHashes {{ hashes: {} }}", hashes.len()),
             Response::BlockHeaders(headers) => {
                 format!("BlockHeaders {{ headers: {} }}", headers.len())
+            }
+            Response::ConnectedPeers(peers) => {
+                format!("ConnectedPeers {{ peers: {} }}", peers.len())
             }
             Response::TransactionIds(ids) => format!("TransactionIds {{ ids: {} }}", ids.len()),
 
@@ -131,6 +197,7 @@ impl Response {
 
             Response::BlockHashes(_) => "BlockHashes",
             Response::BlockHeaders(_) => "BlockHeaders",
+            Response::ConnectedPeers(_) => "ConnectedPeers",
             Response::TransactionIds(_) => "TransactionIds",
 
             Response::Blocks(_) => "Blocks",
