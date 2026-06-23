@@ -1087,6 +1087,10 @@ where
                     )
             }
 
+            (AwaitingRequest, TargetedFindHeaders { .. } | ConnectedPeers) => {
+                panic!("peer-set diagnostic requests must be handled before reaching peer connections")
+            }
+
             (AwaitingRequest, MempoolTransactionIds) => {
                 self
                     .peer_tx
@@ -1509,6 +1513,9 @@ where
                 if let Err(e) = self.peer_tx.send(Message::Headers(headers)).await {
                     self.fail_with(e).await
                 }
+            }
+            Response::ConnectedPeers(_) => {
+                unreachable!("peer-set diagnostic responses are never sent to remote peers")
             }
             Response::TransactionIds(hashes) => {
                 let max_tx_inv_in_message: usize = MAX_TX_INV_IN_SENT_MESSAGE
