@@ -1,5 +1,6 @@
 //! Types used in RPC methods.
 
+pub mod crosslink_peer;
 pub mod default_roots;
 pub mod get_block_template;
 pub mod get_blockchain_info;
