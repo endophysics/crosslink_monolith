@@ -53,7 +53,7 @@ use tokio::{
     sync::{broadcast, watch},
     task::JoinHandle,
 };
-use tower::{Service, ServiceExt};
+use tower::{buffer::Buffer, util::BoxService, Service, ServiceExt};
 use tracing::Instrument;
 
 use zcash_address::{unified::Encoding, TryFromAddress};
@@ -109,6 +109,9 @@ pub mod types;
 use hex_data::HexData;
 use trees::{GetSubtreesByIndexResponse, GetTreestateResponse, SubtreeRpcData};
 use types::{
+    crosslink_peer::{
+        CrosslinkConnectedPeer, CrosslinkConnectedPeersResponse, CrosslinkPeerHeadersResponse,
+    },
     get_block_template::{
         constants::{
             DEFAULT_SOLUTION_RATE_WINDOW_SIZE, MEMPOOL_LONG_POLL_INTERVAL,
@@ -131,6 +134,11 @@ use types::{
     z_validate_address::ZValidateAddressResponse,
     zec::Zec,
 };
+
+pub type NetworkPeerSet = Buffer<
+    BoxService<zebra_network::Request, zebra_network::Response, zebra_network::BoxError>,
+    zebra_network::Request,
+>;
 
 #[cfg(test)]
 mod tests;
@@ -849,6 +857,19 @@ pub trait Rpc {
     #[method(name = "getpeerinfo")]
     async fn get_peer_info(&self) -> Result<Vec<PeerInfo>>;
 
+    /// Returns currently connected peers from Zebra's live peer set.
+    #[method(name = "crosslink_getconnectedpeers")]
+    async fn crosslink_get_connected_peers(&self) -> Result<CrosslinkConnectedPeersResponse>;
+
+    /// Requests headers from a specific currently connected peer.
+    #[method(name = "crosslink_getpeerheaders")]
+    async fn crosslink_get_peer_headers(
+        &self,
+        peer: String,
+        known_blocks: Vec<String>,
+        stop: Option<String>,
+    ) -> Result<CrosslinkPeerHeadersResponse>;
+
     /// Checks if a zcash transparent address of type P2PKH, P2SH or TEX is valid.
     /// Returns information about the given address if valid.
     ///
@@ -1072,6 +1093,9 @@ pub struct RpcImpl<
     /// Peer address book.
     address_book: AddressBook,
 
+    /// Live peer-set handle for Crosslink diagnostics.
+    peer_set: Option<NetworkPeerSet>,
+
     /// The last warning or error event logged by the server.
     last_warn_error_log_rx: LoggedLastEvent,
 
@@ -1267,6 +1291,7 @@ where
             latest_chain_tip: latest_chain_tip.clone(),
             queue_sender,
             address_book,
+            peer_set: None,
             last_warn_error_log_rx,
             gbt,
         };
@@ -1284,6 +1309,12 @@ where
     /// Returns a reference to the configured network.
     pub fn network(&self) -> &Network {
         &self.network
+    }
+
+    /// Attach a live peer-set handle for Crosslink diagnostic RPCs.
+    pub fn with_peer_set(mut self, peer_set: NetworkPeerSet) -> Self {
+        self.peer_set = Some(peer_set);
+        self
     }
 }
 
@@ -3584,6 +3615,94 @@ where
             .into_iter()
             .map(PeerInfo::from)
             .collect())
+    }
+
+    async fn crosslink_get_connected_peers(&self) -> Result<CrosslinkConnectedPeersResponse> {
+        let mut peer_set = self
+            .peer_set
+            .clone()
+            .ok_or_misc_error("live peer-set diagnostics are not available")?;
+
+        let response = peer_set
+            .ready()
+            .and_then(|service| service.call(zebra_network::Request::ConnectedPeers))
+            .await
+            .map_misc_error()?;
+
+        let zebra_network::Response::ConnectedPeers(peers) = response else {
+            unreachable!("unexpected response to ConnectedPeers request")
+        };
+
+        Ok(peers
+            .into_iter()
+            .map(|peer| CrosslinkConnectedPeer {
+                addr: peer.addr,
+                inbound: peer.inbound,
+                ready: peer.ready,
+                user_agent: peer.user_agent,
+                negotiated_version: peer.negotiated_version.0,
+                services: format!("{:016x}", peer.services.bits()),
+            })
+            .collect())
+    }
+
+    async fn crosslink_get_peer_headers(
+        &self,
+        peer: String,
+        known_blocks: Vec<String>,
+        stop: Option<String>,
+    ) -> Result<CrosslinkPeerHeadersResponse> {
+        let peer = peer
+            .parse::<PeerSocketAddr>()
+            .map_error(server::error::LegacyCode::InvalidParameter)?;
+
+        let known_blocks = known_blocks
+            .into_iter()
+            .map(|hash| {
+                hash.parse::<block::Hash>()
+                    .map_error(server::error::LegacyCode::InvalidParameter)
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let stop = stop
+            .map(|hash| {
+                hash.parse::<block::Hash>()
+                    .map_error(server::error::LegacyCode::InvalidParameter)
+            })
+            .transpose()?;
+
+        let mut peer_set = self
+            .peer_set
+            .clone()
+            .ok_or_misc_error("live peer-set diagnostics are not available")?;
+
+        let response = peer_set
+            .ready()
+            .and_then(|service| {
+                service.call(zebra_network::Request::TargetedFindHeaders {
+                    peer,
+                    known_blocks,
+                    stop,
+                })
+            })
+            .await
+            .map_misc_error()?;
+
+        let zebra_network::Response::BlockHeaders(headers) = response else {
+            unreachable!("unexpected response to TargetedFindHeaders request")
+        };
+
+        let headers = headers
+            .into_iter()
+            .map(|header| {
+                header
+                    .zcash_serialize_to_vec()
+                    .map(|bytes| bytes.encode_hex::<String>())
+                    .map_misc_error()
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(CrosslinkPeerHeadersResponse { peer, headers })
     }
 
     async fn validate_address(&self, raw_address: String) -> Result<ValidateAddressResponse> {
