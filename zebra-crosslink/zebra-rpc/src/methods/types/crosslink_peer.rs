@@ -18,6 +18,9 @@ pub struct CrosslinkConnectedPeer {
     /// Negotiated network protocol version.
     pub negotiated_version: u32,
 
+    /// Peer-advertised chain height from the version handshake.
+    pub advertised_height: u32,
+
     /// Hex-encoded service flags advertised by the peer.
     pub services: String,
 }

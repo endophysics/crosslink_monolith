@@ -37,6 +37,9 @@ pub struct ConnectedPeer {
     /// The negotiated network protocol version.
     pub negotiated_version: Version,
 
+    /// The peer's advertised chain height from the version handshake.
+    pub advertised_height: block::Height,
+
     /// The services advertised by the peer.
     pub services: PeerServices,
 }
@@ -53,15 +56,25 @@ impl Arbitrary for ConnectedPeer {
             any::<bool>(),
             any::<String>(),
             any::<u32>(),
+            any::<block::Height>(),
             any::<u64>(),
         )
             .prop_map(
-                |(addr, inbound, ready, user_agent, negotiated_version, services)| ConnectedPeer {
+                |(
+                    addr,
+                    inbound,
+                    ready,
+                    user_agent,
+                    negotiated_version,
+                    advertised_height,
+                    services,
+                )| ConnectedPeer {
                     addr,
                     inbound,
                     ready,
                     user_agent,
                     negotiated_version: Version(negotiated_version),
+                    advertised_height,
                     services: PeerServices::from_bits_truncate(services),
                 },
             )

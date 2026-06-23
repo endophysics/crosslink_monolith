@@ -3641,6 +3641,7 @@ where
                 ready: peer.ready,
                 user_agent: peer.user_agent,
                 negotiated_version: peer.negotiated_version.0,
+                advertised_height: peer.advertised_height.0,
                 services: format!("{:016x}", peer.services.bits()),
             })
             .collect())

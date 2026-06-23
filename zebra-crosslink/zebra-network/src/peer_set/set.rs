@@ -875,6 +875,7 @@ where
             ready: true,
             user_agent: connection_info.remote.user_agent.to_string(),
             negotiated_version: connection_info.negotiated_version,
+            advertised_height: connection_info.remote.start_height,
             services: connection_info.remote.services,
         }
     }
@@ -887,6 +888,7 @@ where
             ready: false,
             user_agent: String::new(),
             negotiated_version: crate::protocol::external::types::Version(0),
+            advertised_height: zebra_chain::block::Height(0),
             services: PeerServices::empty(),
         }
     }
