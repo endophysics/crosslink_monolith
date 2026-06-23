@@ -137,6 +137,22 @@ pub enum Request {
         stop: Option<block::Hash>,
     },
 
+    /// Request headers from a specific currently connected peer.
+    ///
+    /// This diagnostic request bypasses normal peer-set P2C routing. It only
+    /// targets ready peers, returning an error if the peer is busy or missing.
+    TargetedFindHeaders {
+        /// Transient peer-set address for the connection to query.
+        peer: crate::PeerSocketAddr,
+        /// Hashes of known blocks, ordered from highest height to lowest height.
+        known_blocks: Vec<block::Hash>,
+        /// Optionally, the last header to request.
+        stop: Option<block::Hash>,
+    },
+
+    /// List currently connected peers from the live peer set.
+    ConnectedPeers,
+
     /// Push an unmined transaction to a remote peer, without advertising it to them first.
     ///
     /// This is implemented by sending an unsolicited `tx` message.
@@ -214,6 +230,14 @@ impl fmt::Display for Request {
                 known_blocks.len(),
                 if stop.is_some() { "Some" } else { "None" },
             ),
+            Request::TargetedFindHeaders {
+                known_blocks, stop, ..
+            } => format!(
+                "TargetedFindHeaders {{ known_blocks: {}, stop: {} }}",
+                known_blocks.len(),
+                if stop.is_some() { "Some" } else { "None" },
+            ),
+            Request::ConnectedPeers => "ConnectedPeers".to_string(),
 
             Request::PushTransaction(_) => "PushTransaction".to_string(),
             Request::AdvertiseTransactionIds(ids) => {
@@ -238,6 +262,8 @@ impl Request {
 
             Request::FindBlocks { .. } => "FindBlocks",
             Request::FindHeaders { .. } => "FindHeaders",
+            Request::TargetedFindHeaders { .. } => "TargetedFindHeaders",
+            Request::ConnectedPeers => "ConnectedPeers",
 
             Request::PushTransaction(_) => "PushTransaction",
             Request::AdvertiseTransactionIds(_) => "AdvertiseTransactionIds",
