@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Query a local zebrad's getpeerinfo RPC, then run peer-divergence against the
+# currently connected outbound peers. The peer-divergence tool prints each
+# candidate's advertised handshake height while selecting the highest one.
+
+RPC_URL="${ZEBRAD_RPC_URL:-http://127.0.0.1:8232}"
+NETWORK="${ZEBRA_NETWORK:-crosslink-testnet-0}"
+CONNECT_TIMEOUT_SECS="${CONNECT_TIMEOUT_SECS:-10}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ZEBRA_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+usage() {
+    echo "Usage: $0 [peer-divergence args...]"
+    echo
+    echo "Environment overrides:"
+    echo "  ZEBRAD_RPC_URL=http://127.0.0.1:8232"
+    echo "  ZEBRA_NETWORK=crosslink-testnet-0|crosslink-testnet|crosslink-regtestnet|testnet|mainnet"
+    echo "  CONNECT_TIMEOUT_SECS=10"
+    echo
+    echo "Extra arguments are passed to peer-divergence."
+    echo "Example: $0 --trusted-common-height 1000000"
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    usage
+    exit 0
+fi
+
+for cmd in curl jq cargo; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "missing required command: $cmd" >&2
+        exit 1
+    fi
+done
+
+peer_info="$(
+    curl -sS \
+        -H 'content-type: application/json' \
+        --data '{"jsonrpc":"2.0","id":1,"method":"getpeerinfo","params":[]}' \
+        "$RPC_URL"
+)"
+
+peers="$(printf '%s\n' "$peer_info" | jq -r '.result[] | select(.inbound == false) | .addr')"
+
+if [[ -z "$peers" ]]; then
+    echo "no outbound connected peers returned by getpeerinfo at $RPC_URL" >&2
+    exit 1
+fi
+
+candidate_args=()
+while IFS= read -r peer; do
+    [[ -z "$peer" ]] && continue
+    echo "connected outbound peer: $peer" >&2
+    candidate_args+=(--candidate-peer "$peer")
+done <<< "$peers"
+
+RUSTFLAGS="${RUSTFLAGS:--A unsafe-code}" \
+cargo run \
+    --manifest-path "$ZEBRA_ROOT/Cargo.toml" \
+    -p zebra-utils \
+    --features peer-divergence \
+    --bin peer-divergence -- \
+    --network "$NETWORK" \
+    --select-longest \
+    --connect-timeout-secs "$CONNECT_TIMEOUT_SECS" \
+    "${candidate_args[@]}" \
+    "$@"
