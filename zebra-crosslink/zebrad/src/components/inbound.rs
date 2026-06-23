@@ -556,6 +556,9 @@ impl Service<zn::Request> for Inbound {
             zn::Request::Ping(_) => {
                 unreachable!("ping requests are handled internally");
             }
+            zn::Request::TargetedFindHeaders { .. } | zn::Request::ConnectedPeers => {
+                unreachable!("peer-set diagnostic requests are handled locally");
+            }
         }
     }
 }
