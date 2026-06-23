@@ -34,11 +34,22 @@ required-features = ["search-issue-refs"]
 name = "block-template-to-proposal"
 # this setting is required for Zebra's Docker build caches
 path = "src/bin/block-template-to-proposal/main.rs"
+required-features = ["block-template-to-proposal"]
 
 [[bin]]
 name = "openapi-generator"
 path = "src/bin/openapi-generator/main.rs"
 required-features = ["openapi-generator"]
+
+[[bin]]
+name = "peer-divergence"
+path = "src/bin/peer-divergence/main.rs"
+required-features = ["peer-divergence"]
+
+[[bin]]
+name = "fork-tracker"
+path = "src/bin/fork-tracker/main.rs"
+required-features = ["fork-tracker"]
 
 [features]
 default = []
@@ -62,7 +73,26 @@ openapi-generator = [
     "syn",
     "quote",
     "serde_yml",
-    "serde"
+    "serde",
+    "zebra-rpc",
+]
+
+block-template-to-proposal = ["zebra-rpc"]
+
+peer-divergence = [
+    "tokio",
+    "tower",
+    "zebra-node-services/rpc-client",
+    "zebra-network",
+]
+
+fork-tracker = [
+    "rusqlite",
+    "serde",
+    "tokio",
+    "tower",
+    "zebra-node-services/rpc-client",
+    "zebra-network",
 ]
 
 [dependencies]
@@ -76,13 +106,15 @@ hex = { workspace = true }
 serde_json = { workspace = true }
 tracing-error = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing = { workspace = true }
 thiserror = { workspace = true }
 
 zebra-node-services = { path = "../zebra-node-services", version = "1.0.1" }
 zebra-chain = { path = "../zebra-chain", version = "2.0.0" }
+zebra-network = { path = "../zebra-network", version = "1.1.0", optional = true }
 
 # These crates are needed for the block-template-to-proposal binary
-zebra-rpc = { path = "../zebra-rpc", version = "2.0.0" }
+zebra-rpc = { path = "../zebra-rpc", version = "2.0.0", optional = true }
 
 # These crates are needed for the zebra-checkpoints binary
 itertools = { workspace = true, optional = true }
@@ -91,9 +123,11 @@ itertools = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
 # Avoid default openssl dependency to reduce the dependency tree and security alerts.
 reqwest = { workspace = true, features = ["rustls-tls"], optional = true }
+rusqlite = { version = "0.37", features = ["bundled"], optional = true }
 
 # These crates are needed for the zebra-checkpoints and search-issue-refs binaries
 tokio = { workspace = true, features = ["full"], optional = true }
+tower = { workspace = true, features = ["util"], optional = true }
 
 jsonrpc = { workspace = true, optional = true }
 
@@ -107,4 +141,3 @@ quote = { workspace = true, optional = true }
 serde_yml = { workspace = true, optional = true }
 serde = { workspace = true, features = ["serde_derive"], optional = true }
 indexmap = { workspace = true }
-
