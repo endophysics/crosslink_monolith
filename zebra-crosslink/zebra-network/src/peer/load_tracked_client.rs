@@ -53,6 +53,11 @@ impl LoadTrackedClient {
     pub fn remote_version(&self) -> Version {
         self.connection_info.remote.version
     }
+
+    /// Retrieve metadata about this peer connection.
+    pub fn connection_info(&self) -> Arc<ConnectionInfo> {
+        self.connection_info.clone()
+    }
 }
 
 impl<Request> Service<Request> for LoadTrackedClient

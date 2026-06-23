@@ -137,8 +137,9 @@ use crate::{
     },
     protocol::{
         external::InventoryHash,
-        internal::{Request, Response},
+        internal::{ConnectedPeer, Request, Response},
     },
+    types::PeerServices,
     BoxError, Config, PeerError, PeerSocketAddr, SharedPeerError,
 };
 
@@ -864,6 +865,76 @@ where
         .boxed()
     }
 
+    /// Returns metadata for a ready connected peer.
+    fn ready_connected_peer(&self, addr: PeerSocketAddr, svc: &D::Service) -> ConnectedPeer {
+        let connection_info = svc.connection_info();
+
+        ConnectedPeer {
+            addr,
+            inbound: connection_info.connected_addr.is_inbound(),
+            ready: true,
+            user_agent: connection_info.remote.user_agent.to_string(),
+            negotiated_version: connection_info.negotiated_version,
+            services: connection_info.remote.services,
+        }
+    }
+
+    /// Returns metadata for a connected peer that is currently busy.
+    fn busy_connected_peer(&self, addr: PeerSocketAddr) -> ConnectedPeer {
+        ConnectedPeer {
+            addr,
+            inbound: false,
+            ready: false,
+            user_agent: String::new(),
+            negotiated_version: crate::protocol::external::types::Version(0),
+            services: PeerServices::empty(),
+        }
+    }
+
+    /// Returns the live peers currently tracked by the peer set.
+    fn connected_peers(&self) -> <Self as tower::Service<Request>>::Future {
+        let mut peers: Vec<_> = self
+            .ready_services
+            .iter()
+            .map(|(addr, svc)| self.ready_connected_peer(*addr, svc))
+            .collect();
+
+        peers.extend(
+            self.cancel_handles
+                .keys()
+                .copied()
+                .map(|addr| self.busy_connected_peer(addr)),
+        );
+
+        async move { Ok(Response::ConnectedPeers(peers)) }.boxed()
+    }
+
+    /// Routes a header request to one specific ready peer.
+    fn route_targeted_find_headers(
+        &mut self,
+        peer: PeerSocketAddr,
+        known_blocks: Vec<zebra_chain::block::Hash>,
+        stop: Option<zebra_chain::block::Hash>,
+    ) -> <Self as tower::Service<Request>>::Future {
+        if let Some(mut svc) = self.take_ready_service(&peer) {
+            tracing::trace!(?peer, "routing targeted header request");
+            let request = Request::FindHeaders { known_blocks, stop };
+            let fut = svc.call(request);
+            self.push_unready(peer, svc);
+            return fut.map_err(Into::into).boxed();
+        }
+
+        let error = if self.cancel_handles.contains_key(&peer) {
+            PeerError::PeerBusy
+        } else {
+            PeerError::PeerNotFound
+        };
+
+        async move { Err(SharedPeerError::from(error)) }
+            .map_err(Into::into)
+            .boxed()
+    }
+
     /// Tries to route a request to a ready peer that advertised that inventory,
     /// falling back to a ready peer that isn't missing the inventory.
     ///
@@ -1212,6 +1283,13 @@ where
 
     fn call(&mut self, req: Request) -> Self::Future {
         let fut = match req {
+            Request::ConnectedPeers => self.connected_peers(),
+            Request::TargetedFindHeaders {
+                peer,
+                known_blocks,
+                stop,
+            } => self.route_targeted_find_headers(peer, known_blocks, stop),
+
             // Only do inventory-aware routing on individual items.
             Request::BlocksByHash(ref hashes) if hashes.len() == 1 => {
                 let hash = InventoryHash::from(*hashes.iter().next().unwrap());
