@@ -56,7 +56,7 @@ struct CrawlArgs {
     #[structopt(long, default_value = "127.0.0.1:8232")]
     rpc_addr: SocketAddr,
 
-    /// Seed peer address in IP:port form. Can be supplied multiple times.
+    /// Seed peer address in IP:port form for --direct-crawl. Can be supplied multiple times.
     #[structopt(long)]
     peer: Vec<SocketAddr>,
 
@@ -72,11 +72,11 @@ struct CrawlArgs {
     #[structopt(long, default_value = "10")]
     connect_timeout_secs: u64,
 
-    /// Maximum peers to crawl in this run.
+    /// Maximum peers to crawl through direct P2P in this run.
     #[structopt(long, default_value = "500")]
     max_peers: usize,
 
-    /// Maximum peer network crawls to run concurrently. SQLite writes remain serialized.
+    /// Maximum direct P2P peer crawls to run concurrently. SQLite writes remain serialized.
     #[structopt(long, default_value = "4")]
     concurrency: usize,
 
@@ -84,9 +84,16 @@ struct CrawlArgs {
     #[structopt(long, default_value = "10000")]
     max_headers_per_peer: usize,
 
-    /// Discovery/crawl passes over the peer frontier.
+    /// Discovery/crawl passes over the direct P2P peer frontier.
     #[structopt(long, default_value = "3")]
     rounds: usize,
+
+    /// Also crawl peers directly over P2P for wider network discovery.
+    ///
+    /// By default fork-tracker only uses the local zebrad diagnostics RPCs, so peer identity
+    /// matches what the node sees and the tracker does not open its own remote P2P connections.
+    #[structopt(long)]
+    direct_crawl: bool,
 
     /// Allow peers discovered via getaddr to include loopback/private/link-local addresses.
     ///
@@ -518,6 +525,17 @@ async fn crawl(db: &Connection, args: CrawlArgs) -> Result<()> {
                 "WARN crawl session {session_id}: connected peer diagnostics unavailable: {error}",
             );
         }
+    }
+
+    if !args.direct_crawl {
+        info!(
+            session_id,
+            "skipping direct P2P crawl because --direct-crawl was not supplied"
+        );
+        eprintln!(
+            "INFO crawl session {session_id}: node diagnostics complete; skipping direct P2P crawl (pass --direct-crawl to discover wider network peers)",
+        );
+        return Ok(());
     }
 
     let mut queue = VecDeque::new();
@@ -2865,6 +2883,7 @@ mod tests {
             concurrency: 4,
             max_headers_per_peer: 10000,
             rounds: 3,
+            direct_crawl: false,
             allow_private_discovered_peers: false,
         }
     }
