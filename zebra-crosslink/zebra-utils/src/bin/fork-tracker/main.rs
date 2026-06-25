@@ -1964,10 +1964,11 @@ fn enqueue_peer(
 }
 
 fn upsert_peer_seen(db: &Connection, peer_addr: SocketAddr) -> Result<i64> {
-    upsert_peer_label(db, &peer_addr.to_string())
+    upsert_peer_label(db, &peer_addr.ip().to_string())
 }
 
 fn upsert_peer_label(db: &Connection, peer_addr: &str) -> Result<i64> {
+    let peer_addr = peer_identity_label(peer_addr);
     let now = now_unix()?;
     db.execute(
         "INSERT INTO peers(addr, first_seen, last_seen)
@@ -1981,6 +1982,13 @@ fn upsert_peer_label(db: &Connection, peer_addr: &str) -> Result<i64> {
         params![peer_addr],
         |row| row.get(0),
     )?)
+}
+
+fn peer_identity_label(peer_addr: &str) -> String {
+    peer_addr
+        .parse::<SocketAddr>()
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|_| peer_addr.to_string())
 }
 
 fn update_peer_success(
@@ -2834,14 +2842,32 @@ mod tests {
     }
 
     #[test]
-    fn stored_peers_are_reused_as_seeds() {
+    fn ip_only_stored_peers_are_not_reused_as_socket_seeds() {
         let db = Connection::open_in_memory().unwrap();
         init_db(&db).unwrap();
         let peer = "203.0.113.10:8233".parse().unwrap();
 
         upsert_peer_seen(&db, peer).unwrap();
 
-        assert_eq!(stored_peer_addrs(&db).unwrap(), vec![peer]);
+        assert!(stored_peer_addrs(&db).unwrap().is_empty());
+    }
+
+    #[test]
+    fn socket_peer_labels_are_stored_without_ports() {
+        let db = Connection::open_in_memory().unwrap();
+        init_db(&db).unwrap();
+
+        let first_id = upsert_peer_label(&db, "203.0.113.10:8233").unwrap();
+        let second_id = upsert_peer_label(&db, "203.0.113.10:18233").unwrap();
+
+        let stored_addr: String = db
+            .query_row("SELECT addr FROM peers WHERE id = ?1", [first_id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+
+        assert_eq!(first_id, second_id);
+        assert_eq!(stored_addr, "203.0.113.10");
     }
 
     #[test]
