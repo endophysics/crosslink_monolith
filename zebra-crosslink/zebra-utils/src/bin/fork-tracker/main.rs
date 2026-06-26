@@ -3,7 +3,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::Write as _,
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     path::PathBuf,
     str::FromStr,
     sync::Arc,
@@ -1964,7 +1964,7 @@ fn enqueue_peer(
 }
 
 fn upsert_peer_seen(db: &Connection, peer_addr: SocketAddr) -> Result<i64> {
-    upsert_peer_label(db, &peer_addr.ip().to_string())
+    upsert_peer_label(db, &canonical_peer_ip(peer_addr.ip()).to_string())
 }
 
 fn upsert_peer_label(db: &Connection, peer_addr: &str) -> Result<i64> {
@@ -1987,8 +1987,18 @@ fn upsert_peer_label(db: &Connection, peer_addr: &str) -> Result<i64> {
 fn peer_identity_label(peer_addr: &str) -> String {
     peer_addr
         .parse::<SocketAddr>()
-        .map(|addr| addr.ip().to_string())
+        .map(|addr| canonical_peer_ip(addr.ip()).to_string())
         .unwrap_or_else(|_| peer_addr.to_string())
+}
+
+fn canonical_peer_ip(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V4(ip) => IpAddr::V4(ip),
+        IpAddr::V6(ip) => ip
+            .to_ipv4_mapped()
+            .map(IpAddr::V4)
+            .unwrap_or(IpAddr::V6(ip)),
+    }
 }
 
 fn update_peer_success(
@@ -2868,6 +2878,24 @@ mod tests {
 
         assert_eq!(first_id, second_id);
         assert_eq!(stored_addr, "203.0.113.10");
+    }
+
+    #[test]
+    fn ipv4_mapped_ipv6_peer_labels_match_plain_ipv4() {
+        let db = Connection::open_in_memory().unwrap();
+        init_db(&db).unwrap();
+
+        let mapped_id = upsert_peer_label(&db, "[::ffff:70.34.209.18]:39130").unwrap();
+        let ipv4_id = upsert_peer_label(&db, "70.34.209.18:8233").unwrap();
+
+        let stored_addr: String = db
+            .query_row("SELECT addr FROM peers WHERE id = ?1", [mapped_id], |row| {
+                row.get(0)
+            })
+            .unwrap();
+
+        assert_eq!(mapped_id, ipv4_id);
+        assert_eq!(stored_addr, "70.34.209.18");
     }
 
     #[test]
