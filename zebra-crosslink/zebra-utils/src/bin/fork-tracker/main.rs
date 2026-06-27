@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fmt::Write as _,
+    fs,
     net::{IpAddr, SocketAddr},
     path::PathBuf,
     str::FromStr,
@@ -125,6 +126,13 @@ struct ExportArgs {
     /// Export format: json, dot, or html.
     #[structopt(long, default_value = "json")]
     format: ExportFormat,
+
+    /// Write export output to this file via a temporary file and atomic rename.
+    ///
+    /// Prefer this over shell redirection for large exports, because redirection creates or
+    /// truncates the target file before the exporter has successfully built the output.
+    #[structopt(long)]
+    output: Option<PathBuf>,
 
     /// Include every header in DOT output. By default DOT keeps forks, tips, genesis, and sampled checkpoints.
     #[structopt(long)]
@@ -838,15 +846,9 @@ async fn crawl_peer_network(
     let services = format!("{:?}", peer.connection_info.remote.services);
     let advertised_height = peer.connection_info.remote.start_height;
 
-    let (discovered, getaddr_error) = match request_peers(&mut peer).await {
-        Ok(discovered) => (discovered, None),
-        Err(error) => {
-            let error = format_error_chain(&error);
-            warn!(%peer_addr, %error, "getaddr request failed");
-            eprintln!("WARN getaddr request failed for {peer_addr}: {error}");
-            (Vec::new(), Some(error))
-        }
-    };
+    let discovered = request_peers(&mut peer)
+        .await
+        .wrap_err_with(|| format!("getaddr request failed for {peer_addr}"))?;
     eprintln!(
         "INFO peer {peer_addr}: getaddr discovered {} candidate peers",
         discovered.len()
@@ -873,7 +875,7 @@ async fn crawl_peer_network(
         services,
         advertised_height,
         discovered,
-        getaddr_error,
+        getaddr_error: None,
         headers: batch,
     })
 }
@@ -2082,12 +2084,56 @@ fn finish_crawl_session(
 }
 
 fn export(db: &Connection, args: ExportArgs) -> Result<()> {
-    match args.format {
-        ExportFormat::Json => println!("{}", export_json(db)?),
-        ExportFormat::Dot => println!("{}", export_dot(db, &args)?),
-        ExportFormat::Html => println!("{}", export_html(db, &args)?),
+    eprintln!("INFO export {:?}: building output", args.format);
+    let output = match args.format {
+        ExportFormat::Json => export_json(db)?.to_string(),
+        ExportFormat::Dot => export_dot(db, &args)?,
+        ExportFormat::Html => export_html(db, &args)?,
+    };
+
+    if let Some(path) = args.output {
+        write_export_output(&path, &output)?;
+    } else {
+        println!("{output}");
     }
+
     Ok(())
+}
+
+fn write_export_output(path: &PathBuf, output: &str) -> Result<()> {
+    let temp_path = export_temp_path(path);
+    eprintln!(
+        "INFO export: writing {} bytes to temporary file {}",
+        output.len(),
+        temp_path.display(),
+    );
+    fs::write(&temp_path, output.as_bytes()).wrap_err_with(|| {
+        format!(
+            "failed to write temporary export file {}",
+            temp_path.display()
+        )
+    })?;
+
+    fs::rename(&temp_path, path).wrap_err_with(|| {
+        format!(
+            "failed to replace export output {} with temporary file {}",
+            path.display(),
+            temp_path.display(),
+        )
+    })?;
+    eprintln!("INFO export: wrote {}", path.display());
+    Ok(())
+}
+
+fn export_temp_path(path: &PathBuf) -> PathBuf {
+    let mut temp_path = path.clone();
+    let temp_file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| format!(".{name}.tmp"))
+        .unwrap_or_else(|| ".fork-tracker-export.tmp".to_string());
+    temp_path.set_file_name(temp_file_name);
+    temp_path
 }
 
 fn export_json(db: &Connection) -> Result<Value> {
@@ -2248,7 +2294,12 @@ fn export_dot(db: &Connection, args: &ExportArgs) -> Result<String> {
 }
 
 fn export_html(db: &Connection, args: &ExportArgs) -> Result<String> {
+    eprintln!("INFO export html: building browser graph");
     let graph_json = serde_json::to_string(&export_browser_graph(db, args)?)?;
+    eprintln!(
+        "INFO export html: embedded browser graph JSON bytes={}",
+        graph_json.len(),
+    );
     Ok(HTML_VIEWER_TEMPLATE.replace("__FORK_TRACKER_GRAPH__", &graph_json))
 }
 
@@ -2281,6 +2332,7 @@ fn export_browser_graph(db: &Connection, args: &ExportArgs) -> Result<Value> {
             })
         })
         .collect::<Vec<_>>();
+    eprintln!("INFO export graph: selected {} nodes", nodes.len());
 
     let edges = headers
         .iter()
@@ -2297,6 +2349,7 @@ fn export_browser_graph(db: &Connection, args: &ExportArgs) -> Result<Value> {
             )
         })
         .collect::<Vec<_>>();
+    eprintln!("INFO export graph: selected {} edges", edges.len());
 
     Ok(json!({
         "compact": !args.dot_full,
@@ -2307,6 +2360,7 @@ fn export_browser_graph(db: &Connection, args: &ExportArgs) -> Result<Value> {
 }
 
 fn dot_headers(db: &Connection) -> Result<Vec<DotHeader>> {
+    eprintln!("INFO export graph: querying header graph rows from SQLite");
     let mut statement = db.prepare(
         "SELECT
             h.hash,
@@ -2334,7 +2388,9 @@ fn dot_headers(db: &Connection) -> Result<Vec<DotHeader>> {
         })
     })?;
 
-    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    let headers = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    eprintln!("INFO export graph: loaded {} header rows", headers.len());
+    Ok(headers)
 }
 
 fn included_dot_headers(headers: &[DotHeader], args: &ExportArgs) -> HashSet<String> {
@@ -2699,6 +2755,7 @@ mod tests {
     fn compact_dot_keeps_genesis_samples_forks_and_tips() {
         let args = ExportArgs {
             format: ExportFormat::Dot,
+            output: None,
             dot_full: false,
             dot_sample_interval: 100,
         };
@@ -2723,6 +2780,7 @@ mod tests {
     fn compact_dot_keeps_immediate_children_of_forks() {
         let args = ExportArgs {
             format: ExportFormat::Dot,
+            output: None,
             dot_full: false,
             dot_sample_interval: 100,
         };
@@ -2745,6 +2803,7 @@ mod tests {
     fn full_dot_keeps_every_header() {
         let args = ExportArgs {
             format: ExportFormat::Dot,
+            output: None,
             dot_full: true,
             dot_sample_interval: 100,
         };
@@ -2785,6 +2844,7 @@ mod tests {
 
         let args = ExportArgs {
             format: ExportFormat::Html,
+            output: None,
             dot_full: false,
             dot_sample_interval: 100,
         };
